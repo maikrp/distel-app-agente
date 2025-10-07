@@ -118,6 +118,19 @@ export default function App() {
         {usuario.acceso === "regional" && <SupervisorMenu usuario={usuario} />}
         {usuario.acceso === "global" && <GlobalSupervisorMenu usuario={usuario} />}
       </div>
+        <footer style={{
+            textAlign: "center",
+            padding: "10px",
+            fontSize: "14px",
+            color: "#555",
+            backgroundColor: "#f9f9f9",
+            position: "fixed",
+            bottom: 0,
+            width: "100%",
+            borderTop: "1px solid #ddd"
+          }}>
+            © 2025 Distel — Sistema de Control de Desabasto
+        </footer>
     </div>
   );
 }
