@@ -19,9 +19,17 @@ export default function SupervisorMenu({ usuario }) {
     const hoy = new Date().toISOString().split("T")[0];
 
     try {
-      let query = supabase.from("agentes").select("*").ilike("tipo", "%agente%");
+      // === Cargar agentes activos ===
+      let query = supabase
+        .from("agentes")
+        .select("*")
+        .ilike("tipo", "%agente%")
+        .eq("activo", true); // <-- solo agentes activos
+
       if (usuario.acceso === "regional") {
-        query = query.ilike("region", `%${usuario.region}%`);
+        query = query
+          .ilike("region", `%${usuario.region}%`)
+          .eq("activo", true); // <-- filtro activo también aquí
       }
 
       const { data: agentesData, error: agentesError } = await query;
@@ -34,7 +42,9 @@ export default function SupervisorMenu({ usuario }) {
         agentesData.map(async (agente) => {
           const { data: registros } = await supabase
             .from("vw_desabasto_unicos")
-            .select("mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
+            .select(
+              "mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+            )
             .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
             .in("saldo_menor_al_promedio_diario", [
               "Menor al 25%",
@@ -62,7 +72,8 @@ export default function SupervisorMenu({ usuario }) {
           totalZonaAtendidos += totalAtendidos;
 
           let colorBarra = "bg-red-600";
-          if (porcentajeAvance >= 80 && porcentajeAvance < 100) colorBarra = "bg-yellow-400";
+          if (porcentajeAvance >= 80 && porcentajeAvance < 100)
+            colorBarra = "bg-yellow-400";
           else if (porcentajeAvance === 100) colorBarra = "bg-green-600";
           else if (porcentajeAvance >= 50) colorBarra = "bg-orange-500";
 
@@ -91,7 +102,8 @@ export default function SupervisorMenu({ usuario }) {
           : 0;
 
       let colorZona = "bg-red-600";
-      if (porcentajeZona >= 80 && porcentajeZona < 100) colorZona = "bg-yellow-400";
+      if (porcentajeZona >= 80 && porcentajeZona < 100)
+        colorZona = "bg-yellow-400";
       else if (porcentajeZona === 100) colorZona = "bg-green-600";
       else if (porcentajeZona >= 50) colorZona = "bg-orange-500";
 
@@ -117,7 +129,9 @@ export default function SupervisorMenu({ usuario }) {
 
     const { data: registros } = await supabase
       .from("vw_desabasto_unicos")
-      .select("mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga")
+      .select(
+        "mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga"
+      )
       .ilike("jerarquias_n3_ruta", `%${ruta}%`)
       .in("saldo_menor_al_promedio_diario", [
         "Menor al 25%",
@@ -133,7 +147,9 @@ export default function SupervisorMenu({ usuario }) {
       .eq("agente", agenteNombre)
       .eq("fecha", hoy);
 
-    const atendidosIds = (atenciones || []).map((a) => String(a.mdn_usuario));
+    const atendidosIds = (atenciones || []).map((a) =>
+      String(a.mdn_usuario)
+    );
 
     const pendientes = registros
       ?.filter((r) => !atendidosIds.includes(String(r.mdn_usuario)))
@@ -155,7 +171,8 @@ export default function SupervisorMenu({ usuario }) {
         : 0;
 
     let colorRuta = "bg-red-600";
-    if (porcentajeAvance >= 80 && porcentajeAvance < 100) colorRuta = "bg-yellow-400";
+    if (porcentajeAvance >= 80 && porcentajeAvance < 100)
+      colorRuta = "bg-yellow-400";
     else if (porcentajeAvance === 100) colorRuta = "bg-green-600";
     else if (porcentajeAvance >= 50) colorRuta = "bg-orange-500";
 
@@ -192,7 +209,6 @@ export default function SupervisorMenu({ usuario }) {
       semaforo,
     } = detalles;
 
-    // === Resumen de resultados ===
     const efectivos = atenciones.filter((a) => a.resultado === "efectivo").length;
     const noEfectivos = atenciones.filter((a) => a.resultado === "no efectivo").length;
     const total = atenciones.length || 1;
@@ -224,7 +240,6 @@ export default function SupervisorMenu({ usuario }) {
             {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos ({porcentajeAvance}%)
           </p>
 
-          {/* PDV pendientes */}
           {puntos.length === 0 ? (
             <p className="text-center text-gray-600 mt-4">
               Todos los PDV en desabasto fueron atendidos ✅
@@ -259,7 +274,6 @@ export default function SupervisorMenu({ usuario }) {
             </div>
           )}
 
-          {/* Resumen de resultados */}
           {atenciones.length > 0 && (
             <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6 text-center">
               <h3 className="text-md font-semibold text-gray-800 mb-2">
@@ -276,7 +290,6 @@ export default function SupervisorMenu({ usuario }) {
             </div>
           )}
 
-          {/* Histórico */}
           {atenciones.length > 0 && (
             <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
               <h3 className="text-md font-semibold text-gray-800 text-center mb-2">
