@@ -5,6 +5,7 @@ export default function AgentDashboard({ usuario }) {
   const [registros, setRegistros] = useState([]);
   const [atendidos, setAtendidos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actualizando, setActualizando] = useState(false);
   const [resumen, setResumen] = useState({});
   const [motivoSeleccionado, setMotivoSeleccionado] = useState(null);
   const [pdvSeleccionado, setPdvSeleccionado] = useState(null);
@@ -14,6 +15,7 @@ export default function AgentDashboard({ usuario }) {
 
   const cargarDatos = async () => {
     setLoading(true);
+    setActualizando(true);
 
     // === Registros en desabasto ===
     const { data: registrosData } = await supabase
@@ -41,7 +43,7 @@ export default function AgentDashboard({ usuario }) {
 
     const atendidosIds = (atencionesData || []).map((a) => String(a.mdn_usuario));
 
-    // === Pendientes (no atendidos aún) ===
+    // === Pendientes ===
     const pendientes = (registrosData || [])
       .filter((r) => !atendidosIds.includes(String(r.mdn_usuario)))
       .map((r) => {
@@ -71,7 +73,7 @@ export default function AgentDashboard({ usuario }) {
     const porcentajeEfectivos = Math.round((efectivos / total) * 100);
     const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
 
-    // === Obtener último uso de mis recargas por cada atención ===
+    // === Obtener último uso MR ===
     const mdns = (atencionesData || []).map((a) => a.mdn_usuario);
     let usos = [];
     if (mdns.length > 0) {
@@ -103,10 +105,11 @@ export default function AgentDashboard({ usuario }) {
       porcentajeEfectivos,
       porcentajeNoEfectivos,
     });
+
     setLoading(false);
+    setActualizando(false);
   };
 
-  // === Marcar atención ===
   const marcarAtencion = async (pdv, resultado, motivo = null) => {
     await supabase.from("atenciones_agentes").insert([
       {
@@ -128,13 +131,11 @@ export default function AgentDashboard({ usuario }) {
     cargarDatos();
   };
 
-  // === Mostrar popup para seleccionar motivo ===
   const manejarNoEfectivo = (pdv) => {
     setPdvSeleccionado(pdv);
     setMostrarMotivos(true);
   };
 
-  // === Devolver PDV a pendientes ===
   const devolverPDV = async (atencion) => {
     await supabase.from("atenciones_agentes").delete().eq("id", atencion.id);
     cargarDatos();
@@ -150,9 +151,21 @@ export default function AgentDashboard({ usuario }) {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-4xl animate-fadeIn">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4 text-center">
-          Supervisión — {usuario.region?.toUpperCase()} — {usuario.nombre}
-        </h2>
+        {/* === Encabezado con botón de actualización === */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 text-center flex-1">
+            Supervisión — {usuario.region?.toUpperCase()} — {usuario.nombre}
+          </h2>
+          <button
+            onClick={cargarDatos}
+            className={`text-blue-600 hover:text-blue-800 text-lg transition-transform ${
+              actualizando ? "animate-spin" : ""
+            }`}
+            title="Actualizar datos"
+          >
+            🔄
+          </button>
+        </div>
 
         {/* === Barra de avance === */}
         <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
@@ -273,7 +286,7 @@ export default function AgentDashboard({ usuario }) {
           </div>
         )}
 
-        {/* === Histórico de atenciones === */}
+        {/* === Histórico === */}
         {atendidos.length > 0 && (
           <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
             <h3 className="text-md font-semibold text-gray-800 text-center mb-2">
