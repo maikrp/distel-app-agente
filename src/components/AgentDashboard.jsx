@@ -6,6 +6,9 @@ export default function AgentDashboard({ usuario }) {
   const [atendidos, setAtendidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [resumen, setResumen] = useState({});
+  const [motivoSeleccionado, setMotivoSeleccionado] = useState(null);
+  const [pdvSeleccionado, setPdvSeleccionado] = useState(null);
+  const [mostrarMotivos, setMostrarMotivos] = useState(false);
 
   const hoy = new Date().toISOString().split("T")[0];
 
@@ -14,7 +17,7 @@ export default function AgentDashboard({ usuario }) {
 
     // === Registros en desabasto ===
     const { data: registrosData } = await supabase
-      .from("vw_desabasto_unicos") // Vista única y más reciente
+      .from("vw_desabasto_unicos")
       .select(
         "mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
       )
@@ -30,7 +33,9 @@ export default function AgentDashboard({ usuario }) {
     // === Atenciones registradas ===
     const { data: atencionesData } = await supabase
       .from("atenciones_agentes")
-      .select("id, mdn_usuario, pdv, resultado, hora, created_at")
+      .select(
+        "id, mdn_usuario, pdv, resultado, motivo_no_efectivo, hora, created_at"
+      )
       .eq("agente", usuario.nombre)
       .eq("fecha", hoy);
 
@@ -66,8 +71,29 @@ export default function AgentDashboard({ usuario }) {
     const porcentajeEfectivos = Math.round((efectivos / total) * 100);
     const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
 
+    // === Obtener último uso de mis recargas por cada atención ===
+    const mdns = (atencionesData || []).map((a) => a.mdn_usuario);
+    let usos = [];
+    if (mdns.length > 0) {
+      const { data: usosData } = await supabase
+        .from("desabasto_registros")
+        .select("mdn_usuario, ultimo_uso_de_mis_recargas")
+        .in("mdn_usuario", mdns);
+      usos = usosData || [];
+    }
+
+    const atendidosConUso = (atencionesData || []).map((a) => {
+      const match = usos.find((u) => u.mdn_usuario === a.mdn_usuario);
+      return {
+        ...a,
+        ultimo_uso_de_mis_recargas: match
+          ? match.ultimo_uso_de_mis_recargas
+          : null,
+      };
+    });
+
     setRegistros(pendientes);
-    setAtendidos(atencionesData || []);
+    setAtendidos(atendidosConUso);
     setResumen({
       totalDesabasto,
       totalAtendidos,
@@ -80,7 +106,8 @@ export default function AgentDashboard({ usuario }) {
     setLoading(false);
   };
 
-  const marcarAtencion = async (pdv, resultado) => {
+  // === Marcar atención ===
+  const marcarAtencion = async (pdv, resultado, motivo = null) => {
     await supabase.from("atenciones_agentes").insert([
       {
         agente: usuario.nombre,
@@ -92,12 +119,22 @@ export default function AgentDashboard({ usuario }) {
           minute: "2-digit",
         }),
         resultado,
+        motivo_no_efectivo: motivo,
       },
     ]);
+    setMostrarMotivos(false);
+    setMotivoSeleccionado(null);
+    setPdvSeleccionado(null);
     cargarDatos();
   };
 
-  // === NUEVA FUNCIÓN: devolver PDV a pendientes ===
+  // === Mostrar popup para seleccionar motivo ===
+  const manejarNoEfectivo = (pdv) => {
+    setPdvSeleccionado(pdv);
+    setMostrarMotivos(true);
+  };
+
+  // === Devolver PDV a pendientes ===
   const devolverPDV = async (atencion) => {
     await supabase.from("atenciones_agentes").delete().eq("id", atencion.id);
     cargarDatos();
@@ -117,6 +154,7 @@ export default function AgentDashboard({ usuario }) {
           Supervisión — {usuario.region?.toUpperCase()} — {usuario.nombre}
         </h2>
 
+        {/* === Barra de avance === */}
         <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
           <div
             className={`${
@@ -174,7 +212,7 @@ export default function AgentDashboard({ usuario }) {
                     🟢 Efectivo
                   </button>
                   <button
-                    onClick={() => marcarAtencion(pdv, "no efectivo")}
+                    onClick={() => manejarNoEfectivo(pdv)}
                     className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-3 rounded-lg w-1/2"
                   >
                     🔴 No efectivo
@@ -182,6 +220,39 @@ export default function AgentDashboard({ usuario }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* === Popup selección motivo === */}
+        {mostrarMotivos && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-80">
+              <h3 className="text-md font-semibold text-gray-800 mb-3 text-center">
+                Seleccione el motivo
+              </h3>
+              <div className="flex flex-col gap-2">
+                {[
+                  "Tiene saldo suficiente",
+                  "No tiene dinero",
+                  "Cerrado PDV/No está encargado",
+                  "PDV inactivo en SIFAM",
+                ].map((motivo, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => marcarAtencion(pdvSeleccionado, "no efectivo", motivo)}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-3 rounded-lg text-sm font-medium"
+                  >
+                    {motivo}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setMostrarMotivos(false)}
+                className="mt-4 text-sm text-gray-500 hover:text-gray-700 w-full text-center"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
 
@@ -202,7 +273,7 @@ export default function AgentDashboard({ usuario }) {
           </div>
         )}
 
-        {/* === Histórico de atenciones del día === */}
+        {/* === Histórico de atenciones === */}
         {atendidos.length > 0 && (
           <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
             <h3 className="text-md font-semibold text-gray-800 text-center mb-2">
@@ -225,6 +296,16 @@ export default function AgentDashboard({ usuario }) {
                       )}
                     </p>
                     <p className="text-xs text-gray-500">MDN: {a.mdn_usuario}</p>
+                    {a.resultado === "no efectivo" && a.motivo_no_efectivo && (
+                      <p className="text-xs text-gray-600 italic">
+                        Motivo: {a.motivo_no_efectivo}
+                      </p>
+                    )}
+                    {a.ultimo_uso_de_mis_recargas && (
+                      <p className="text-xs text-gray-500">
+                        Último uso MR: {a.ultimo_uso_de_mis_recargas}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -235,8 +316,6 @@ export default function AgentDashboard({ usuario }) {
                           minute: "2-digit",
                         })}
                     </span>
-
-                    {/* NUEVO BOTÓN: devolver PDV a pendientes */}
                     <button
                       onClick={() => devolverPDV(a)}
                       className="text-blue-600 hover:text-blue-800 text-sm font-bold"
