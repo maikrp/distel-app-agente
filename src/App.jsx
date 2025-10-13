@@ -59,7 +59,7 @@ export default function App() {
   // === CAMBIAR CLAVE TEMPORAL ===
   const handleCambioClave = async () => {
     if (!nuevaClave || nuevaClave.length < 4) {
-      alert("La nueva clave debe tener al menos 4 caracteres.");
+      alert("La nueva clave debe tener al menos 4 dígitos.");
       return;
     }
     if (nuevaClave !== confirmarClave) {
@@ -138,18 +138,30 @@ export default function App() {
 
           <input
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setTelefono(val);
+            }}
             onKeyDown={handleKeyPressLogin}
             placeholder="Ejemplo: 60123456"
             className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
           <input
             type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength="4"
             value={clave}
-            onChange={(e) => setClave(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setClave(val);
+            }}
             onKeyDown={handleKeyPressLogin}
-            placeholder="Clave"
+            placeholder="Clave (4 dígitos)"
             className="border rounded-lg p-3 w-full text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
@@ -183,16 +195,29 @@ export default function App() {
 
           <input
             type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength="4"
             value={nuevaClave}
-            onChange={(e) => setNuevaClave(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setNuevaClave(val);
+            }}
             onKeyDown={handleKeyPressCambio}
-            placeholder="Nueva clave"
+            placeholder="Nueva clave (4 dígitos)"
             className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
           <input
             type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength="4"
             value={confirmarClave}
-            onChange={(e) => setConfirmarClave(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "");
+              setConfirmarClave(val);
+            }}
             onKeyDown={handleKeyPressCambio}
             placeholder="Confirmar nueva clave"
             className="border rounded-lg p-3 w-full text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
