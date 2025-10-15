@@ -19,17 +19,16 @@ export default function SupervisorMenu({ usuario }) {
     const hoy = new Date().toISOString().split("T")[0];
 
     try {
-      // === Cargar agentes activos ===
       let query = supabase
         .from("agentes")
         .select("*")
         .ilike("tipo", "%agente%")
-        .eq("activo", true); // <-- solo agentes activos
+        .eq("activo", true);
 
       if (usuario.acceso === "regional") {
         query = query
           .ilike("region", `%${usuario.region}%`)
-          .eq("activo", true); // <-- filtro activo también aquí
+          .eq("activo", true);
       }
 
       const { data: agentesData, error: agentesError } = await query;
@@ -143,11 +142,32 @@ export default function SupervisorMenu({ usuario }) {
 
     const { data: atenciones } = await supabase
       .from("atenciones_agentes")
-      .select("mdn_usuario, pdv, hora, created_at, resultado")
+      .select("id, mdn_usuario, pdv, hora, created_at, resultado, motivo_no_efectivo")
       .eq("agente", agenteNombre)
       .eq("fecha", hoy);
 
-    const atendidosIds = (atenciones || []).map((a) =>
+    // === Obtener último uso MR ===
+    const mdns = (atenciones || []).map((a) => a.mdn_usuario);
+    let usos = [];
+    if (mdns.length > 0) {
+      const { data: usosData } = await supabase
+        .from("desabasto_registros")
+        .select("mdn_usuario, ultimo_uso_de_mis_recargas")
+        .in("mdn_usuario", mdns);
+      usos = usosData || [];
+    }
+
+    const atencionesConUso = (atenciones || []).map((a) => {
+      const match = usos.find((u) => u.mdn_usuario === a.mdn_usuario);
+      return {
+        ...a,
+        ultimo_uso_de_mis_recargas: match
+          ? match.ultimo_uso_de_mis_recargas
+          : null,
+      };
+    });
+
+    const atendidosIds = (atencionesConUso || []).map((a) =>
       String(a.mdn_usuario)
     );
 
@@ -164,7 +184,7 @@ export default function SupervisorMenu({ usuario }) {
       .sort((a, b) => a.porcentaje - b.porcentaje);
 
     const totalDesabasto = registros?.length || 0;
-    const totalAtendidos = atenciones?.length || 0;
+    const totalAtendidos = atencionesConUso?.length || 0;
     const porcentajeAvance =
       totalDesabasto > 0
         ? Math.round((totalAtendidos / totalDesabasto) * 100)
@@ -183,7 +203,7 @@ export default function SupervisorMenu({ usuario }) {
       colorRuta,
       totalDesabasto,
       totalAtendidos,
-      atenciones: atenciones || [],
+      atenciones: atencionesConUso,
       semaforo: obtenerSemaforo(porcentajeAvance),
     });
 
@@ -195,7 +215,11 @@ export default function SupervisorMenu({ usuario }) {
   }, [cargarAgentes]);
 
   if (loading)
-    return <p className="text-center text-gray-500 mt-6">Cargando información...</p>;
+    return (
+      <p className="text-center text-gray-500 mt-6">
+        Cargando información...
+      </p>
+    );
 
   if (detalles) {
     const {
@@ -209,8 +233,12 @@ export default function SupervisorMenu({ usuario }) {
       semaforo,
     } = detalles;
 
-    const efectivos = atenciones.filter((a) => a.resultado === "efectivo").length;
-    const noEfectivos = atenciones.filter((a) => a.resultado === "no efectivo").length;
+    const efectivos = atenciones.filter(
+      (a) => a.resultado === "efectivo"
+    ).length;
+    const noEfectivos = atenciones.filter(
+      (a) => a.resultado === "no efectivo"
+    ).length;
     const total = atenciones.length || 1;
     const porcentajeEfectivos = Math.round((efectivos / total) * 100);
     const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
@@ -237,7 +265,8 @@ export default function SupervisorMenu({ usuario }) {
             />
           </div>
           <p className="text-sm text-center text-gray-700 mb-4">
-            {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos ({porcentajeAvance}%)
+            {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos (
+            {porcentajeAvance}%)
           </p>
 
           {puntos.length === 0 ? (
@@ -252,10 +281,15 @@ export default function SupervisorMenu({ usuario }) {
                   className="rounded-xl shadow-md p-4 flex flex-col justify-between border border-gray-200 bg-white"
                 >
                   <div>
-                    <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
-                    <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
+                    <p className="text-xs text-gray-500">
+                      MDN: {pdv.mdn_usuario}
+                    </p>
+                    <h3 className="text-base font-bold text-gray-800">
+                      {pdv.pdv}
+                    </h3>
                     <p className="text-sm text-gray-700 mb-1">
-                      Saldo actual: ₡{pdv.saldo?.toLocaleString("es-CR") || 0}
+                      Saldo actual: ₡
+                      {pdv.saldo?.toLocaleString("es-CR") || 0}
                     </p>
                     <p
                       className={`text-xs font-semibold ${
@@ -298,7 +332,7 @@ export default function SupervisorMenu({ usuario }) {
               <div className="divide-y divide-gray-200">
                 {atenciones.map((a) => (
                   <div
-                    key={a.mdn_usuario}
+                    key={a.id}
                     className="py-2 text-sm text-gray-700 flex justify-between items-center"
                   >
                     <div>
@@ -311,9 +345,28 @@ export default function SupervisorMenu({ usuario }) {
                           <span className="w-3 h-3 bg-red-500 rounded-full" />
                         )}
                       </p>
-                      <p className="text-xs text-gray-500">MDN: {a.mdn_usuario}</p>
+                      <p className="text-xs text-gray-500">
+                        MDN: {a.mdn_usuario}
+                      </p>
+                      {a.resultado === "no efectivo" &&
+                        a.motivo_no_efectivo && (
+                          <p className="text-xs text-gray-600 italic">
+                            Motivo: {a.motivo_no_efectivo}
+                          </p>
+                        )}
+                      {a.ultimo_uso_de_mis_recargas && (
+                        <p className="text-xs text-gray-500">
+                          Último uso MR: {a.ultimo_uso_de_mis_recargas}
+                        </p>
+                      )}
                     </div>
-                    <span className="text-xs text-gray-600">{a.hora}</span>
+                    <span className="text-xs text-gray-600">
+                      {a.hora ||
+                        new Date(a.created_at).toLocaleTimeString("es-CR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -349,7 +402,8 @@ export default function SupervisorMenu({ usuario }) {
           />
         </div>
         <p className="text-sm text-center text-gray-700 mb-4">
-          {totalZonaAtendidos} de {totalZonaDesabasto} PDV en desabasto atendidos ({porcentajeZona}%)
+          {totalZonaAtendidos} de {totalZonaDesabasto} PDV en desabasto atendidos (
+          {porcentajeZona}%)
         </p>
 
         {agentes.length === 0 ? (

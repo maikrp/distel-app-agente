@@ -247,12 +247,19 @@ export default function AgentDashboard({ usuario }) {
                 {[
                   "Tiene saldo suficiente",
                   "No tiene dinero",
-                  "Cerrado PDV/No está encargado",
-                  "PDV inactivo en SIFAM",
+                  "PDV Cerrado",
+                  "No está encargado",
+                  "PDV inactivo SIFAM",
+                  "Se contacto sin respuesta",
+                  "Recargado/NO refleja por MR",
+                  "Activador de chips",
+                  "No Valido/usuario personal",
                 ].map((motivo, idx) => (
                   <button
                     key={idx}
-                    onClick={() => marcarAtencion(pdvSeleccionado, "no efectivo", motivo)}
+                    onClick={() =>
+                      marcarAtencion(pdvSeleccionado, "no efectivo", motivo)
+                    }
                     className="bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-3 rounded-lg text-sm font-medium"
                   >
                     {motivo}

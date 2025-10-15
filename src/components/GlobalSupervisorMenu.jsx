@@ -239,7 +239,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
     const { data: atenciones } = await supabase
       .from("atenciones_agentes")
-      .select("id, mdn_usuario, pdv, hora, created_at, resultado")
+      .select("id, mdn_usuario, pdv, hora, created_at, resultado, motivo_no_efectivo")
       .eq("agente", agente.nombre)
       .eq("fecha", hoy);
 
@@ -387,6 +387,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
                         {a.resultado === "no efectivo" && <span className="w-3 h-3 bg-red-500 rounded-full" />}
                       </p>
                       <p className="text-xs text-gray-500">MDN: {a.mdn_usuario}</p>
+                      {a.resultado === "no efectivo" && a.motivo_no_efectivo && (
+                        <p className="text-xs text-gray-600 italic">
+                          Motivo: {a.motivo_no_efectivo}
+                        </p>
+                      )}
                     </div>
                     <span className="text-xs text-gray-600">{a.hora}</span>
                   </div>
