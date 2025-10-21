@@ -10,7 +10,11 @@ export default function App() {
   const [clave, setClave] = useState("");
   const [nuevaClave, setNuevaClave] = useState("");
   const [confirmarClave, setConfirmarClave] = useState("");
-  const [usuario, setUsuario] = useState(null);
+  // === CAMBIO: persistencia de sesión ===
+  const [usuario, setUsuario] = useState(() => {
+    const stored = localStorage.getItem("usuario");
+    return stored ? JSON.parse(stored) : null;
+  });
   const [loading, setLoading] = useState(false);
   const [requiereCambio, setRequiereCambio] = useState(false);
 
@@ -47,12 +51,14 @@ export default function App() {
 
     if (agente.clave_temporal) {
       setUsuario(agente);
+      localStorage.setItem("usuario", JSON.stringify(agente)); // 🔹 persistir
       setRequiereCambio(true);
       setLoading(false);
       return;
     }
 
     setUsuario(agente);
+    localStorage.setItem("usuario", JSON.stringify(agente)); // 🔹 persistir
     setLoading(false);
   };
 
@@ -85,7 +91,9 @@ export default function App() {
     }
 
     alert("Clave actualizada correctamente. Puede continuar.");
-    setUsuario({ ...usuario, clave_temporal: false });
+    const actualizado = { ...usuario, clave_temporal: false };
+    setUsuario(actualizado);
+    localStorage.setItem("usuario", JSON.stringify(actualizado)); // 🔹 actualizar local
     setRequiereCambio(false);
     setLoading(false);
   };
@@ -98,6 +106,7 @@ export default function App() {
     setNuevaClave("");
     setConfirmarClave("");
     setRequiereCambio(false);
+    localStorage.removeItem("usuario"); // 🔹 limpiar persistencia
   };
 
   // === Bloquear botón "atrás" del navegador una vez logueado ===
@@ -111,6 +120,19 @@ export default function App() {
       return () => window.removeEventListener("popstate", handlePopState);
     }
   }, [usuario]);
+
+  // === Bloquear pull-to-refresh en móviles ===
+  useEffect(() => {
+    const preventPullToRefresh = (e) => {
+      if (e.touches.length !== 1) return;
+      const touchY = e.touches[0].clientY;
+      if (touchY < 50) e.preventDefault();
+    };
+    document.addEventListener("touchmove", preventPullToRefresh, { passive: false });
+    return () => {
+      document.removeEventListener("touchmove", preventPullToRefresh);
+    };
+  }, []);
 
   // === Permitir presionar ENTER ===
   const handleKeyPressLogin = (e) => {
