@@ -124,7 +124,7 @@ export default function SupervisorMenu({ usuario }) {
 
   const cargarDetalles = async (ruta, agenteNombre) => {
     setLoading(true);
-    const hoy = new Date().toISOString().split("T")[0];
+    const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Costa_Rica" });
 
     const { data: registros } = await supabase
       .from("vw_desabasto_unicos")

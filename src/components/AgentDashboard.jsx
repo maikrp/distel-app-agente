@@ -11,7 +11,7 @@ export default function AgentDashboard({ usuario }) {
   const [pdvSeleccionado, setPdvSeleccionado] = useState(null);
   const [mostrarMotivos, setMostrarMotivos] = useState(false);
 
-  const hoy = new Date().toISOString().split("T")[0];
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Costa_Rica" });
 
   const cargarDatos = async () => {
     setLoading(true);
