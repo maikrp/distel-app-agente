@@ -342,37 +342,41 @@ export default function SupervisorMenu({ usuario }) {
   }, [vista, cargarAgentesGenerico, cargarResumenHistorico]);
 
   // ==== Vista: menú principal ====
-  if (vista === "menu") {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full">
+  // ==== Vista: menú principal ====
+// ==== Vista: menú principal ====
+if (vista === "menu") {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="flex flex-col justify-center items-center w-full px-4">
+        <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn">
           <h2 className="text-xl font-semibold mb-6 text-gray-800">
             Supervisión — {usuario.region}
           </h2>
           <div className="space-y-4">
             <button
               onClick={() => setVista("actual")}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-semibold"
             >
               📊 Seguimiento Desabasto (Hoy)
             </button>
             <button
               onClick={() => setVista("anterior")}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg font-semibold"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-lg font-semibold"
             >
               📅 Revisar Desabasto Día Anterior
             </button>
             <button
               onClick={() => setVista("historico")}
-              className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold"
+              className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold"
             >
               📈 Ver Resumen de Avance por Agente (7 días)
             </button>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // ==== Vista: histórico agrupado por agente con ranking y promedios ====
   if (vista === "historico") {
