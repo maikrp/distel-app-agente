@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 
 export default function SupervisorMenu({ usuario }) {
-  // === NUEVO: control de vistas ===
-  const [vista, setVista] = useState("menu"); // menu | actual | anterior | historico
+  // Vistas: menu | actual | anterior | historico
+  const [vista, setVista] = useState("menu");
 
-  // === Estado general ===
+  // Estado general
   const [agentes, setAgentes] = useState([]);
   const [detalles, setDetalles] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,10 +13,10 @@ export default function SupervisorMenu({ usuario }) {
   const [historico, setHistorico] = useState([]);
   const [fechaRango, setFechaRango] = useState({ inicio: null, fin: null });
 
-  // === Zona horaria fija ===
+  // Zona horaria
   const TZ = "America/Costa_Rica";
 
-  // === Funciones de fecha (ajustadas para evitar desfase) ===
+  // ==== Helpers de fecha (sin desfases) ====
   const hoyISO = () => {
     const nowCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
     const y = nowCR.getFullYear();
@@ -36,7 +36,8 @@ export default function SupervisorMenu({ usuario }) {
 
   const parseISOasCRDate = (iso) => {
     const [y, m, d] = iso.split("-").map(Number);
-    return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)); // evitar saltos UTC
+    // Mediodía UTC para evitar saltos por DST
+    return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   };
 
   const formatFechaCortoCR = (iso) =>
@@ -54,15 +55,15 @@ export default function SupervisorMenu({ usuario }) {
       year: "numeric",
     });
 
-  // === Semáforo ===
-  const obtenerSemaforo = (porcentaje) => {
-    if (porcentaje === 100) return "🟢";
-    if (porcentaje >= 80) return "🟡";
-    if (porcentaje >= 50) return "🟠";
+  // ==== Semáforo ====
+  const obtenerSemaforo = (p) => {
+    if (p === 100) return "🟢";
+    if (p >= 80) return "🟡";
+    if (p >= 50) return "🟠";
     return "🔴";
   };
 
-  // === Cargar agentes (día actual o anterior) ===
+  // ==== Cargar agentes para hoy o día anterior ====
   const cargarAgentesGenerico = useCallback(
     async (offsetDias = 0) => {
       setLoading(true);
@@ -86,7 +87,7 @@ export default function SupervisorMenu({ usuario }) {
         let totalZonaAtendidos = 0;
 
         const agentesConDatos = await Promise.all(
-          agentesData.map(async (agente) => {
+          (agentesData || []).map(async (agente) => {
             const { data: registros } = await supabase
               .from("vw_desabasto_unicos")
               .select(
@@ -172,7 +173,7 @@ export default function SupervisorMenu({ usuario }) {
     [usuario]
   );
 
-  // === Cargar resumen histórico (últimos 7 días) ===
+  // ==== Resumen histórico últimos 7 días ====
   const cargarResumenHistorico = useCallback(async () => {
     setLoading(true);
     try {
@@ -189,36 +190,42 @@ export default function SupervisorMenu({ usuario }) {
       const { data: agentesData } = await queryAgentes;
       if (!agentesData || agentesData.length === 0) {
         setHistorico([]);
+        setFechaRango({ inicio: null, fin: null });
         setLoading(false);
         return;
       }
 
-      const dias = Array.from({ length: 7 }, (_, i) => isoNDiasAtras(6 - i)); // últimos 7 días (CR)
+      // Fechas: de hace 6 días a hoy, en CR
+      const dias = Array.from({ length: 7 }, (_, i) => isoNDiasAtras(6 - i));
       const historicoData = [];
 
       for (const fecha of dias) {
         const inicio = `${fecha}T00:00:00`;
         const fin = `${fecha}T23:59:59`;
 
+        // 1 consulta registros del día
         const { data: registrosDia } = await supabase
           .from("vw_desabasto_unicos")
           .select("jerarquias_n3_ruta, mdn_usuario, fecha_carga")
           .gte("fecha_carga", inicio)
           .lte("fecha_carga", fin);
 
+        // 1 consulta atenciones del día
         const { data: atencionesDia } = await supabase
           .from("atenciones_agentes")
           .select("agente, resultado, mdn_usuario")
           .eq("fecha", fecha);
 
-        agentesData.forEach((ag) => {
+        // Construir métricas por agente
+        (agentesData || []).forEach((ag) => {
           const desabastoAg =
             registrosDia?.filter((r) =>
               r.jerarquias_n3_ruta?.includes(ag.ruta_excel)
             ).length || 0;
 
-          const atencionesAg =
-            atencionesDia?.filter((a) => a.agente === ag.nombre) || [];
+          const atencionesAg = (atencionesDia || []).filter(
+            (a) => a.agente === ag.nombre
+          );
 
           const totalAtendidos = atencionesAg.length;
           const efectivos = atencionesAg.filter(
@@ -229,6 +236,7 @@ export default function SupervisorMenu({ usuario }) {
             desabastoAg > 0
               ? Math.round((totalAtendidos / desabastoAg) * 100)
               : 0;
+
           const porcentajeEfectivos =
             totalAtendidos > 0
               ? Math.round((efectivos / totalAtendidos) * 100)
@@ -250,19 +258,17 @@ export default function SupervisorMenu({ usuario }) {
       );
 
       setHistorico(filtrados);
-      setFechaRango({
-        inicio: dias[0],
-        fin: dias[dias.length - 1],
-      });
+      setFechaRango({ inicio: dias[0], fin: dias[dias.length - 1] });
     } catch (err) {
       console.error("Error al cargar histórico:", err.message);
       setHistorico([]);
+      setFechaRango({ inicio: null, fin: null });
     } finally {
       setLoading(false);
     }
   }, [usuario]);
 
-  // === Cargar detalles ===
+  // ==== Detalles de una ruta/agente para día en curso o anterior ====
   const cargarDetalles = async (ruta, agenteNombre) => {
     setLoading(true);
     const fechaObjetivo = vista === "anterior" ? isoNDiasAtras(1) : hoyISO();
@@ -289,44 +295,9 @@ export default function SupervisorMenu({ usuario }) {
       .eq("agente", agenteNombre)
       .eq("fecha", fechaObjetivo);
 
-    const mdns = (atenciones || []).map((a) => a.mdn_usuario);
-    let usos = [];
-    if (mdns.length > 0) {
-      const { data: usosData } = await supabase
-        .from("desabasto_registros")
-        .select("mdn_usuario, ultimo_uso_de_mis_recargas")
-        .in("mdn_usuario", mdns);
-      usos = usosData || [];
-    }
-
-    const atencionesConUso = (atenciones || []).map((a) => {
-      const match = usos.find((u) => u.mdn_usuario === a.mdn_usuario);
-      return {
-        ...a,
-        ultimo_uso_de_mis_recargas: match
-          ? match.ultimo_uso_de_mis_recargas
-          : null,
-      };
-    });
-
-    const atendidosIds = (atencionesConUso || []).map((a) =>
-      String(a.mdn_usuario)
-    );
-
-    const pendientes = registros
-      ?.filter((r) => !atendidosIds.includes(String(r.mdn_usuario)))
-      .map((r) => {
-        const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
-        let porcentaje = 100;
-        if (t.includes("25")) porcentaje = 25;
-        else if (t.includes("50")) porcentaje = 50;
-        else if (t.includes("75")) porcentaje = 75;
-        return { ...r, porcentaje };
-      })
-      .sort((a, b) => a.porcentaje - b.porcentaje);
-
     const totalDesabasto = registros?.length || 0;
-    const totalAtendidos = atencionesConUso?.length || 0;
+    const totalAtendidos = atenciones?.length || 0;
+
     const porcentajeAvance =
       totalDesabasto > 0
         ? Math.round((totalAtendidos / totalDesabasto) * 100)
@@ -340,24 +311,37 @@ export default function SupervisorMenu({ usuario }) {
 
     setDetalles({
       ruta,
-      puntos: pendientes,
-      porcentajeAvance,
-      colorRuta,
       totalDesabasto,
       totalAtendidos,
-      atenciones: atencionesConUso,
+      porcentajeAvance,
+      colorRuta,
       semaforo: obtenerSemaforo(porcentajeAvance),
+      atenciones: atenciones || [],
+      puntos: (registros || []).map((r) => {
+        const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
+        let porcentaje = 100;
+        if (t.includes("25")) porcentaje = 25;
+        else if (t.includes("50")) porcentaje = 50;
+        else if (t.includes("75")) porcentaje = 75;
+        return { ...r, porcentaje };
+      }),
     });
 
     setLoading(false);
   };
 
-  // === useEffect inicial ===
+  // ==== Cargas por vista ====
   useEffect(() => {
-    setLoading(false);
-  }, []);
+    if (vista === "menu") {
+      setLoading(false);
+      return;
+    }
+    if (vista === "actual") cargarAgentesGenerico(0);
+    if (vista === "anterior") cargarAgentesGenerico(1);
+    if (vista === "historico") cargarResumenHistorico();
+  }, [vista, cargarAgentesGenerico, cargarResumenHistorico]);
 
-  // === Menú principal ===
+  // ==== Vista: menú principal ====
   if (vista === "menu") {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -367,28 +351,19 @@ export default function SupervisorMenu({ usuario }) {
           </h2>
           <div className="space-y-4">
             <button
-              onClick={() => {
-                setVista("actual");
-                cargarAgentesGenerico(0);
-              }}
+              onClick={() => setVista("actual")}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold"
             >
               📊 Seguimiento Desabasto (Hoy)
             </button>
             <button
-              onClick={() => {
-                setVista("anterior");
-                cargarAgentesGenerico(1);
-              }}
+              onClick={() => setVista("anterior")}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg font-semibold"
             >
               📅 Revisar Desabasto Día Anterior
             </button>
             <button
-              onClick={() => {
-                setVista("historico");
-                cargarResumenHistorico();
-              }}
+              onClick={() => setVista("historico")}
               className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold"
             >
               📈 Ver Resumen de Avance por Agente (7 días)
@@ -399,21 +374,23 @@ export default function SupervisorMenu({ usuario }) {
     );
   }
 
-  // === Vista histórico ===
+  // ==== Vista: histórico agrupado por agente con ranking y promedios ====
   if (vista === "historico") {
+    // Agrupar por agente
     const grupos = historico.reduce((acc, r) => {
       if (!acc[r.agente]) acc[r.agente] = [];
       acc[r.agente].push(r);
       return acc;
     }, {});
 
+    // Ranking por promedio de avance
     const agentesOrdenados = Object.entries(grupos)
       .map(([agente, registros]) => {
         const avgAvance =
-          registros.reduce((sum, r) => sum + (r.porcentajeAvance || 0), 0) /
+          registros.reduce((s, r) => s + (r.porcentajeAvance || 0), 0) /
           registros.length;
         const avgEfectivos =
-          registros.reduce((sum, r) => sum + (r.porcentajeEfectivos || 0), 0) /
+          registros.reduce((s, r) => s + (r.porcentajeEfectivos || 0), 0) /
           registros.length;
         return {
           agente,
@@ -482,66 +459,91 @@ export default function SupervisorMenu({ usuario }) {
                   </p>
                 </div>
 
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-gray-200 text-gray-800">
-                      <th className="p-2 text-left">Fecha</th>
-                      <th className="p-2 text-center">Desabasto</th>
-                      <th className="p-2 text-center">Atendidos</th>
-                      <th className="p-2 text-center">% Avance</th>
-                      <th className="p-2 text-center">% Efectivos</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ag.registros.map((r, i) => (
-                      <tr
-                        key={i}
-                        className="border-b hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="p-2">{formatFechaCortoCR(r.fecha)}</td>
-                        <td className="p-2 text-center">{r.desabasto}</td>
-                        <td className="p-2 text-center">{r.atendidos}</td>
+                {/* Contenedor con scroll y sombras dinámicas */}
+                <div
+                  className="relative overflow-x-auto border rounded-lg shadow-sm"
+                  onScroll={(e) => {
+                    const el = e.target;
+                    const left = el.querySelector(".scroll-shadow-left");
+                    const right = el.querySelector(".scroll-shadow-right");
+                    if (!left || !right) return;
+                    const atStart = el.scrollLeft <= 5;
+                    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 5;
+                    left.style.opacity = atStart ? "0" : "1";
+                    right.style.opacity = atEnd ? "0" : "1";
+                  }}
+                >
+                  {/* Sombras izquierda/derecha */}
+                  <div
+                    className="scroll-shadow-left absolute top-0 left-0 w-6 h-full bg-gradient-to-r from-gray-300/70 transition-opacity duration-300 pointer-events-none"
+                    style={{ opacity: 0 }}
+                  />
+                  <div
+                    className="scroll-shadow-right absolute top-0 right-0 w-6 h-full bg-gradient-to-l from-gray-300/70 transition-opacity duration-300 pointer-events-none"
+                    style={{ opacity: 1 }}
+                  />
+
+                  <table className="min-w-[600px] w-full text-sm border-collapse">
+                    <thead className="bg-gray-200 text-gray-800 sticky top-0 z-10">
+                      <tr>
+                        <th className="p-2 text-left">Fecha</th>
+                        <th className="p-2 text-center">Desabasto</th>
+                        <th className="p-2 text-center">Atendidos</th>
+                        <th className="p-2 text-center">% Avance</th>
+                        <th className="p-2 text-center">% Efectivos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ag.registros.map((r, i) => (
+                        <tr
+                          key={i}
+                          className="border-b hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="p-2">{formatFechaCortoCR(r.fecha)}</td>
+                          <td className="p-2 text-center">{r.desabasto}</td>
+                          <td className="p-2 text-center">{r.atendidos}</td>
+                          <td
+                            className={`p-2 text-center font-semibold ${
+                              r.porcentajeAvance >= 100
+                                ? "text-green-600"
+                                : r.porcentajeAvance >= 80
+                                ? "text-yellow-600"
+                                : r.porcentajeAvance >= 50
+                                ? "text-orange-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {r.porcentajeAvance}%
+                          </td>
+                          <td className="p-2 text-center text-blue-600 font-semibold">
+                            {r.porcentajeEfectivos}%
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-100 font-semibold">
+                        <td className="p-2 text-center">Promedio</td>
+                        <td className="p-2 text-center">—</td>
+                        <td className="p-2 text-center">—</td>
                         <td
-                          className={`p-2 text-center font-semibold ${
-                            r.porcentajeAvance >= 100
+                          className={`p-2 text-center ${
+                            ag.avgAvance >= 100
                               ? "text-green-600"
-                              : r.porcentajeAvance >= 80
+                              : ag.avgAvance >= 80
                               ? "text-yellow-600"
-                              : r.porcentajeAvance >= 50
+                              : ag.avgAvance >= 50
                               ? "text-orange-600"
                               : "text-red-600"
                           }`}
                         >
-                          {r.porcentajeAvance}%
+                          {ag.avgAvance}%
                         </td>
-                        <td className="p-2 text-center text-blue-600 font-semibold">
-                          {r.porcentajeEfectivos}%
+                        <td className="p-2 text-center text-blue-600">
+                          {ag.avgEfectivos}%
                         </td>
                       </tr>
-                    ))}
-                    <tr className="bg-gray-100 font-semibold">
-                      <td className="p-2 text-center">Promedio</td>
-                      <td className="p-2 text-center">—</td>
-                      <td className="p-2 text-center">—</td>
-                      <td
-                        className={`p-2 text-center ${
-                          ag.avgAvance >= 100
-                            ? "text-green-600"
-                            : ag.avgAvance >= 80
-                            ? "text-yellow-600"
-                            : ag.avgAvance >= 50
-                            ? "text-orange-600"
-                            : "text-red-600"
-                        }`}
-                      >
-                        {ag.avgAvance}%
-                      </td>
-                      <td className="p-2 text-center text-blue-600">
-                        {ag.avgEfectivos}%
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ))
           )}
@@ -550,31 +552,21 @@ export default function SupervisorMenu({ usuario }) {
     );
   }
 
-  // === Vista de agentes actual o anterior ===
-  const { totalZonaDesabasto, totalZonaAtendidos, porcentajeZona, colorZona, semaforo } =
-    resumenZona;
-
-  if (loading)
-    return (
-      <p className="text-center text-gray-500 mt-6">Cargando información...</p>
-    );
-
+  // ==== Vista: detalles de una ruta ====
   if (detalles) {
     const {
       ruta,
-      puntos,
+      puntos = [],
       porcentajeAvance,
       colorRuta,
       totalDesabasto,
       totalAtendidos,
-      atenciones,
+      atenciones = [],
       semaforo,
     } = detalles;
 
     const efectivos = atenciones.filter((a) => a.resultado === "efectivo").length;
-    const noEfectivos = atenciones.filter(
-      (a) => a.resultado === "no efectivo"
-    ).length;
+    const noEfectivos = atenciones.filter((a) => a.resultado === "no efectivo").length;
     const total = atenciones.length || 1;
     const porcentajeEfectivos = Math.round((efectivos / total) * 100);
     const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
@@ -611,33 +603,37 @@ export default function SupervisorMenu({ usuario }) {
             </p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {puntos.map((pdv, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl shadow-md p-4 flex flex-col justify-between border border-gray-200 bg-white"
-                >
-                  <div>
-                    <p className="text-xs text-gray-500">
-                      MDN: {pdv.mdn_usuario}
-                    </p>
-                    <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
-                    <p className="text-sm text-gray-700 mb-1">
-                      Saldo actual: ₡{pdv.saldo?.toLocaleString("es-CR") || 0}
-                    </p>
-                    <p
-                      className={`text-xs font-semibold ${
-                        pdv.porcentaje === 25
-                          ? "text-red-600"
-                          : pdv.porcentaje === 50
-                          ? "text-orange-500"
-                          : "text-yellow-500"
-                      }`}
-                    >
-                      Desabasto: {pdv.porcentaje} %
-                    </p>
+              {puntos
+                .sort((a, b) => a.porcentaje - b.porcentaje)
+                .map((pdv, i) => (
+                  <div
+                    key={i}
+                    className="rounded-xl shadow-md p-4 flex flex-col justify-between border border-gray-200 bg-white"
+                  >
+                    <div>
+                      <p className="text-xs text-gray-500">
+                        MDN: {pdv.mdn_usuario}
+                      </p>
+                      <h3 className="text-base font-bold text-gray-800">
+                        {pdv.pdv}
+                      </h3>
+                      <p className="text-sm text-gray-700 mb-1">
+                        Saldo actual: ₡{pdv.saldo?.toLocaleString("es-CR") || 0}
+                      </p>
+                      <p
+                        className={`text-xs font-semibold ${
+                          pdv.porcentaje === 25
+                            ? "text-red-600"
+                            : pdv.porcentaje === 50
+                            ? "text-orange-500"
+                            : "text-yellow-500"
+                        }`}
+                      >
+                        Desabasto: {pdv.porcentaje} %
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           )}
 
@@ -661,24 +657,51 @@ export default function SupervisorMenu({ usuario }) {
     );
   }
 
-  // === Vista principal de seguimiento (hoy o ayer) ===
+  // ==== Vista: seguimiento actual o día anterior (lista de agentes) ====
+  const {
+    totalZonaDesabasto = 0,
+    totalZonaAtendidos = 0,
+    porcentajeZona = 0,
+    colorZona = "bg-red-600",
+    semaforo = "🔴",
+  } = resumenZona;
+
+  if (loading)
+    return (
+      <p className="text-center text-gray-500 mt-6">Cargando información...</p>
+    );
+
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">
-            {semaforo} Supervisión — {usuario.region} (
-            {vista === "anterior"
-              ? formatFechaLargoCR(isoNDiasAtras(1))
-              : formatFechaLargoCR(hoyISO())}
-            )
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
+            <span>{semaforo}</span>
+            <span>
+              {vista === "actual"
+                ? `Supervisión — ${usuario.region}`
+                : `Desabasto Día Anterior — ${usuario.region}`}
+            </span>
+            <span className="text-sm text-gray-500 font-normal">
+              {vista === "anterior"
+                ? formatFechaLargoCR(isoNDiasAtras(1))
+                : formatFechaLargoCR(hoyISO())}
+            </span>
           </h2>
-          <button
-            onClick={() => setVista("menu")}
-            className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
-          >
-            ⬅ Volver al menú
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setVista("menu")}
+              className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
+            >
+              ⬅ Menú
+            </button>
+            <button
+              onClick={() => cargarAgentesGenerico(vista === "actual" ? 0 : 1)}
+              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
+            >
+              🔄 Actualizar
+            </button>
+          </div>
         </div>
 
         <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
