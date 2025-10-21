@@ -6,9 +6,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
   // Vistas: menu | actual | anterior | historico | region | agente | historicoRegionAgentes
   const [vista, setVista] = useState("menu");
 
-  // Contexto de fecha: 0=hoy, 1=ayer (CR). Se mantiene en sub-vistas.
-  const [offsetDiasCtx, setOffsetDiasCtx] = useState(0);
-
   // Estados globales
   const [regiones, setRegiones] = useState([]);
   const [regionSeleccionada, setRegionSeleccionada] = useState(null);
@@ -26,7 +23,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
   const [historicoRegionAgentes, setHistoricoRegionAgentes] = useState([]);
   const [fechaRangoRegion, setFechaRangoRegion] = useState({ inicio: null, fin: null });
 
-  // Zona horaria y helpers de fecha
+  // Zona horaria y helpers de fecha (idénticos a SupervisorMenu)
   const TZ = "America/Costa_Rica";
 
   const hoyISO = () => {
@@ -74,7 +71,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     return "🔴";
   };
 
-  // Normalización de región
+  // Normalización de región (conservado)
   const normalizarRegion = (r) => {
     const n = (r || "").trim().toLowerCase();
     if (!n) return null;
@@ -82,7 +79,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     if (n === "gte" || n === "gte altura" || n === "gte bajura") return "GTE";
     if (n.includes("zona norte") || n === "norte") return "NORTE";
     if (n === "gam") return "GAM";
-    return (r || "").toUpperCase();
+    return r.toUpperCase();
   };
 
   // ===================== CARGAS =====================
@@ -122,9 +119,15 @@ export default function GlobalSupervisorMenu({ usuario }) {
             agentesRegionLocal.map(async (agente) => {
               const { data: registros } = await supabase
                 .from("vw_desabasto_unicos")
-                .select("mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
+                .select(
+                  "mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+                )
                 .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
-                .in("saldo_menor_al_promedio_diario", ["Menor al 25%", "Menor al 50%", "Menor al 75%"])
+                .in("saldo_menor_al_promedio_diario", [
+                  "Menor al 25%",
+                  "Menor al 50%",
+                  "Menor al 75%",
+                ])
                 .gte("fecha_carga", `${fecha}T00:00:00`)
                 .lte("fecha_carga", `${fecha}T23:59:59`);
 
@@ -256,20 +259,19 @@ export default function GlobalSupervisorMenu({ usuario }) {
     setVista("region");
   };
 
-  // Detalle de agente con pendientes = registros - atendidos (usa offsetDiasCtx)
+  // Detalle de agente para fecha según vista (hoy o ayer)
   const cargarDetalleAgente = async (agente) => {
     setLoading(true);
-    const fechaObjetivo = isoNDiasAtras(offsetDiasCtx);
-    const inicio = `${fechaObjetivo}T00:00:00`;
-    const fin = `${fechaObjetivo}T23:59:59`;
+    const offset = vista === "anterior" ? 1 : 0;
+    const fechaObjetivo = isoNDiasAtras(offset);
 
     const { data: registros } = await supabase
       .from("vw_desabasto_unicos")
       .select("mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
       .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
       .in("saldo_menor_al_promedio_diario", ["Menor al 25%", "Menor al 50%", "Menor al 75%"])
-      .gte("fecha_carga", inicio)
-      .lte("fecha_carga", fin);
+      .gte("fecha_carga", `${fechaObjetivo}T00:00:00`)
+      .lte("fecha_carga", `${fechaObjetivo}T23:59:59`);
 
     const { data: atenciones } = await supabase
       .from("atenciones_agentes")
@@ -277,10 +279,9 @@ export default function GlobalSupervisorMenu({ usuario }) {
       .eq("agente", agente.nombre)
       .eq("fecha", fechaObjetivo);
 
-    const atendidosIds = new Set((atenciones || []).map((a) => String(a.mdn_usuario)));
-
+    const atendidosIds = (atenciones || []).map((a) => String(a.mdn_usuario));
     const pendientes = (registros || [])
-      .filter((r) => !atendidosIds.has(String(r.mdn_usuario)))
+      .filter((r) => !atendidosIds.includes(String(r.mdn_usuario)))
       .map((r) => {
         const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
         let porcentaje = 100;
@@ -504,19 +505,13 @@ export default function GlobalSupervisorMenu({ usuario }) {
             </h2>
             <div className="space-y-4">
               <button
-                onClick={() => {
-                  setOffsetDiasCtx(0);
-                  setVista("actual");
-                }}
+                onClick={() => setVista("actual")}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-semibold"
               >
                 📊 Seguimiento Desabasto (Hoy)
               </button>
               <button
-                onClick={() => {
-                  setOffsetDiasCtx(1); // exactamente ayer según CR
-                  setVista("anterior");
-                }}
+                onClick={() => setVista("anterior")}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-lg font-semibold"
               >
                 📅 Revisar Desabasto Día Anterior
@@ -550,7 +545,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
               {semaforo}{" "}
-              {offsetDiasCtx === 1
+              {vista === "anterior"
                 ? `Desabasto Día Anterior — Todas las Regiones (${formatFechaLargoCR(
                     isoNDiasAtras(1)
                   )})`
@@ -564,7 +559,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 ⬅ Menú
               </button>
               <button
-                onClick={() => cargarResumenGlobalGenerico(offsetDiasCtx)}
+                onClick={() => cargarResumenGlobalGenerico(vista === "anterior" ? 1 : 0)}
                 className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
               >
                 🔄 Actualizar
@@ -596,20 +591,12 @@ export default function GlobalSupervisorMenu({ usuario }) {
                   <p className="text-xs text-gray-700 mb-2">
                     {r.totalRegionAtendidos} de {r.totalRegionDesabasto} PDV atendidos ({r.porcentajeAvance}%)
                   </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => cargarRegion(r.region, offsetDiasCtx)}
-                      className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg w-full"
-                    >
-                      Ver región
-                    </button>
-                    <button
-                      onClick={() => cargarResumenHistoricoRegion(r.region)}
-                      className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-4 rounded-lg w-full"
-                    >
-                      Histórico 7 días (agentes)
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => cargarRegion(r.region, vista === "anterior" ? 1 : 0)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg w-full"
+                  >
+                    Ver región
+                  </button>
                 </div>
               ))}
             </div>
@@ -637,21 +624,21 @@ export default function GlobalSupervisorMenu({ usuario }) {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
               {obtenerSemaforo(porcentajeZona)} SUPERVISIÓN GLOBAL — {regionSeleccionada.toUpperCase()} (
-              {formatFechaLargoCR(isoNDiasAtras(offsetDiasCtx))})
+              {vista === "anterior" ? formatFechaLargoCR(isoNDiasAtras(1)) : formatFechaLargoCR(hoyISO())})
             </h2>
             <div className="flex gap-2">
               <button
                 onClick={() => {
                   setRegionSeleccionada(null);
                   setAgentesRegion([]);
-                  setVista(offsetDiasCtx === 1 ? "anterior" : "actual");
+                  setVista("actual"); // o "anterior" según desde donde entró
                 }}
                 className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
               >
                 ⬅ Regiones
               </button>
               <button
-                onClick={() => cargarRegion(regionSeleccionada, offsetDiasCtx)}
+                onClick={() => cargarRegion(regionSeleccionada, vista === "anterior" ? 1 : 0)}
                 className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
               >
                 🔄 Actualizar
@@ -699,7 +686,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Vista: detalle del agente (pendientes ya excluye atendidos)
+  // Vista: detalle del agente (incluye PDV atendidos)
   if (vista === "agente" && detallesAgente && agenteSeleccionado && regionSeleccionada) {
     const {
       pendientes,
@@ -844,7 +831,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Vista: histórico global por región
+  // Vista: histórico global por región (ranking + botón detalle por agentes)
   if (vista === "historico") {
     const grupos = historico.reduce((acc, r) => {
       if (!acc[r.region]) acc[r.region] = [];
