@@ -21,7 +21,7 @@ export default function AgentDashboard({ usuario }) {
     const { data: registrosData } = await supabase
       .from("vw_desabasto_unicos")
       .select(
-        "mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+        "mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta, promedio_semanal, fecha_ultima_compra"
       )
       .ilike("jerarquias_n3_ruta", `%${usuario.ruta_excel}%`)
       .in("saldo_menor_al_promedio_diario", [
@@ -73,7 +73,7 @@ export default function AgentDashboard({ usuario }) {
     const porcentajeEfectivos = Math.round((efectivos / total) * 100);
     const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
 
-    // === Obtener último uso MR ===
+    // === Último uso MR ===
     const mdns = (atencionesData || []).map((a) => a.mdn_usuario);
     let usos = [];
     if (mdns.length > 0) {
@@ -145,68 +145,97 @@ export default function AgentDashboard({ usuario }) {
     cargarDatos();
   }, []);
 
+  const formatNumber = (num) => {
+    if (num === null || num === undefined || isNaN(num)) return "N/D";
+    return parseFloat(num).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   if (loading)
-    return <p className="text-center text-gray-500 mt-6">Cargando información...</p>;
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-100">
+        <p className="text-gray-500">Cargando información...</p>
+      </div>
+    );
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-4xl animate-fadeIn">
-        {/* === Encabezado con botón de actualización === */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 text-center flex-1">
-            Supervisión — {usuario.region?.toUpperCase()} — {usuario.nombre}
-          </h2>
-          <button
-            onClick={cargarDatos}
-            className={`text-blue-600 hover:text-blue-800 text-lg transition-transform ${
-              actualizando ? "animate-spin" : ""
-            }`}
-            title="Actualizar datos"
-          >
-            🔄
-          </button>
-        </div>
+    <div className="flex flex-col min-h-screen bg-gray-100 overflow-y-auto">
+      {/* === Encabezado fijo === */}
+      <header className="sticky top-0 z-50 bg-white shadow-sm p-3 flex items-center justify-between max-w-4xl mx-auto w-full">
+        <h2 className="text-sm sm:text-base md:text-lg font-semibold text-gray-800 flex-1 text-center">
+          {usuario.region?.toUpperCase()} — {usuario.nombre}
+        </h2>
+        <button
+          onClick={cargarDatos}
+          className={`text-blue-600 hover:text-blue-800 text-lg transition-transform ${
+            actualizando ? "animate-spin" : ""
+          }`}
+          title="Actualizar datos"
+        >
+          🔄
+        </button>
+      </header>
 
-        {/* === Barra de avance === */}
-        <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
-          <div
-            className={`${
-              resumen.porcentajeAvance >= 100
-                ? "bg-green-600"
-                : resumen.porcentajeAvance >= 80
-                ? "bg-yellow-400"
-                : resumen.porcentajeAvance >= 50
-                ? "bg-orange-500"
-                : "bg-red-600"
-            } h-4 transition-all duration-500`}
-            style={{ width: `${resumen.porcentajeAvance}%` }}
-          />
+      {/* === Contenido principal === */}
+      <main className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-5 md:p-8 space-y-5">
+        {/* === Resumen de avance === */}
+        <div className="bg-white rounded-2xl p-4 text-center shadow-md">
+          <p className="text-sm md:text-base text-gray-700 mb-1">
+            {resumen.totalAtendidos} / {resumen.totalDesabasto} PDV atendidos
+          </p>
+          <div className="w-full bg-gray-300 rounded-full h-3 overflow-hidden mb-1">
+            <div
+              className={`${
+                resumen.porcentajeAvance >= 100
+                  ? "bg-green-600"
+                  : resumen.porcentajeAvance >= 80
+                  ? "bg-yellow-400"
+                  : resumen.porcentajeAvance >= 50
+                  ? "bg-orange-500"
+                  : "bg-red-600"
+              } h-3 transition-all`}
+              style={{ width: `${resumen.porcentajeAvance}%` }}
+            />
+          </div>
+          <p className="text-xs md:text-sm text-gray-600">
+            Avance: {resumen.porcentajeAvance}%
+          </p>
         </div>
-        <p className="text-sm text-center text-gray-700 mb-4">
-          {resumen.totalAtendidos} de {resumen.totalDesabasto} PDV en desabasto atendidos (
-          {resumen.porcentajeAvance}%)
-        </p>
 
         {/* === PDV pendientes === */}
-        {registros.length === 0 ? (
-          <p className="text-center text-gray-600 mt-4">
-            Todos los PDV en desabasto fueron atendidos ✅
-          </p>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {registros.map((pdv, i) => (
-              <div
-                key={i}
-                className="rounded-xl shadow-md p-4 flex flex-col justify-between border border-gray-200 bg-white"
-              >
-                <div>
+        <section>
+          <h3 className="text-sm md:text-base font-semibold text-gray-700 mb-2 text-center">
+            PDV por atender
+          </h3>
+          {registros.length === 0 ? (
+            <p className="text-center text-gray-600 text-sm">
+              Todos los PDV fueron atendidos ✅
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {registros.map((pdv, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl shadow p-4 bg-white border border-gray-200 hover:shadow-lg transition"
+                >
                   <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
-                  <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
-                  <p className="text-sm text-gray-700 mb-1">
-                    Saldo actual: ₡{pdv.saldo?.toLocaleString("es-CR") || 0}
+                  <h3 className="text-base font-semibold text-gray-800">{pdv.pdv}</h3>
+                  <p className="text-sm text-gray-700">
+                    Saldo actual: ₡{formatNumber(pdv.saldo)}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Promedio semanal: {formatNumber(pdv.promedio_semanal)}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Última compra:{" "}
+                    {pdv.fecha_ultima_compra
+                      ? new Date(pdv.fecha_ultima_compra).toLocaleDateString("es-CR")
+                      : "N/D"}
                   </p>
                   <p
-                    className={`text-xs font-semibold ${
+                    className={`text-xs font-semibold mt-1 ${
                       pdv.porcentaje === 25
                         ? "text-red-600"
                         : pdv.porcentaje === 50
@@ -216,25 +245,26 @@ export default function AgentDashboard({ usuario }) {
                   >
                     Desabasto: {pdv.porcentaje} %
                   </p>
+
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => marcarAtencion(pdv, "efectivo")}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm font-semibold py-2 rounded-lg"
+                    >
+                      🟢 Efectivo
+                    </button>
+                    <button
+                      onClick={() => manejarNoEfectivo(pdv)}
+                      className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold py-2 rounded-lg"
+                    >
+                      🔴 No efectivo
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => marcarAtencion(pdv, "efectivo")}
-                    className="bg-green-600 hover:bg-green-700 text-white text-sm font-semibold py-2 px-3 rounded-lg w-1/2"
-                  >
-                    🟢 Efectivo
-                  </button>
-                  <button
-                    onClick={() => manejarNoEfectivo(pdv)}
-                    className="bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 px-3 rounded-lg w-1/2"
-                  >
-                    🔴 No efectivo
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* === Popup selección motivo === */}
         {mostrarMotivos && (
@@ -278,11 +308,11 @@ export default function AgentDashboard({ usuario }) {
 
         {/* === Resumen general === */}
         {atendidos.length > 0 && (
-          <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6 text-center">
-            <h3 className="text-md font-semibold text-gray-800 mb-2">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-4 text-center">
+            <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-1">
               Resumen de resultados del día
             </h3>
-            <div className="flex justify-around text-sm font-semibold">
+            <div className="flex justify-around text-xs md:text-sm font-semibold">
               <p className="text-green-600">
                 🟢 Efectivos: {resumen.efectivos} ({resumen.porcentajeEfectivos}%)
               </p>
@@ -295,8 +325,8 @@ export default function AgentDashboard({ usuario }) {
 
         {/* === Histórico === */}
         {atendidos.length > 0 && (
-          <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
-            <h3 className="text-md font-semibold text-gray-800 text-center mb-2">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-md p-4">
+            <h3 className="text-sm md:text-base font-semibold text-gray-800 text-center mb-2">
               PDV Atendidos Hoy ({atendidos.length})
             </h3>
             <div className="divide-y divide-gray-200">
@@ -349,7 +379,7 @@ export default function AgentDashboard({ usuario }) {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

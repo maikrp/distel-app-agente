@@ -65,6 +65,15 @@ export default function SupervisorMenu({ usuario }) {
     return "🔴";
   };
 
+  // ==== Formato numérico con comas y 2 decimales ====
+  const formatNumber = (num) => {
+    if (num === null || num === undefined || isNaN(num)) return "N/D";
+    return parseFloat(num).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   // ==== Cargar agentes para hoy o día anterior ====
   const cargarAgentesGenerico = useCallback(
     async (offsetDias = 0) => {
@@ -276,7 +285,8 @@ export default function SupervisorMenu({ usuario }) {
     const { data: registros } = await supabase
       .from("vw_desabasto_unicos")
       .select(
-        "mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+        // Nuevos campos incluidos
+        "mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
       )
       .ilike("jerarquias_n3_ruta", `%${ruta}%`)
       .in("saldo_menor_al_promedio_diario", [
@@ -365,7 +375,7 @@ export default function SupervisorMenu({ usuario }) {
   // ==== Vista: menú principal ====
   if (vista === "menu") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
         <div className="flex flex-col justify-center items-center w-full px-4">
           <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn">
             <h2 className="text-xl font-semibold mb-6 text-gray-800">
@@ -423,26 +433,26 @@ export default function SupervisorMenu({ usuario }) {
       .sort((a, b) => b.avgAvance - a.avgAvance);
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">
-                📈 Resumen Histórico — Últimos 7 días — Región {usuario.region}
-              </h2>
-              {fechaRango.inicio && fechaRango.fin && (
-                <p className="text-sm text-gray-600 mt-1">
-                  📆 Datos desde {formatFechaLargoCR(fechaRango.inicio)} hasta{" "}
-                  {formatFechaLargoCR(fechaRango.fin)}
-                </p>
-              )}
+          <div className="flex flex-col items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 text-center">
+              📈 Resumen Histórico — Últimos 7 días — Región {usuario.region}
+            </h2>
+            {fechaRango.inicio && fechaRango.fin && (
+              <p className="text-sm text-gray-600 mt-1 text-center">
+                📆 Datos desde {formatFechaLargoCR(fechaRango.inicio)} hasta{" "}
+                {formatFechaLargoCR(fechaRango.fin)}
+              </p>
+            )}
+            <div className="flex justify-center gap-3 mt-3">
+              <button
+                onClick={() => setVista("menu")}
+                className="text-sm bg-blue-600 text-white py-1 px-4 rounded-lg hover:bg-blue-700"
+              >
+                ⬅ Volver al menú
+              </button>
             </div>
-            <button
-              onClick={() => setVista("menu")}
-              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
-            >
-              ⬅ Volver al menú
-            </button>
           </div>
 
           {loading ? (
@@ -480,28 +490,7 @@ export default function SupervisorMenu({ usuario }) {
                   </p>
                 </div>
 
-                <div
-                  className="relative overflow-x-auto border rounded-lg shadow-sm"
-                  onScroll={(e) => {
-                    const el = e.target;
-                    const left = el.querySelector(".scroll-shadow-left");
-                    const right = el.querySelector(".scroll-shadow-right");
-                    if (!left || !right) return;
-                    const atStart = el.scrollLeft <= 5;
-                    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 5;
-                    left.style.opacity = atStart ? "0" : "1";
-                    right.style.opacity = atEnd ? "0" : "1";
-                  }}
-                >
-                  <div
-                    className="scroll-shadow-left absolute top-0 left-0 w-6 h-full bg-gradient-to-r from-gray-300/70 transition-opacity duration-300 pointer-events-none"
-                    style={{ opacity: 0 }}
-                  />
-                  <div
-                    className="scroll-shadow-right absolute top-0 right-0 w-6 h-full bg-gradient-to-l from-gray-300/70 transition-opacity duration-300 pointer-events-none"
-                    style={{ opacity: 1 }}
-                  />
-
+                <div className="relative overflow-x-auto border rounded-lg shadow-sm">
                   <table className="min-w-[600px] w-full text-sm border-collapse">
                     <thead className="bg-gray-200 text-gray-800 sticky top-0 z-10">
                       <tr>
@@ -570,7 +559,6 @@ export default function SupervisorMenu({ usuario }) {
       </div>
     );
   }
-
   // ==== Vista: detalles de una ruta ====
   if (detalles) {
     const {
@@ -592,22 +580,24 @@ export default function SupervisorMenu({ usuario }) {
     const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-4xl animate-fadeIn">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">
+          <div className="flex flex-col items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 text-center">
               {semaforo} Avance de atención — {ruta}
             </h2>
-            <button
-              onClick={() => setDetalles(null)}
-              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
-            >
-              ⬅ Volver
-            </button>
+            <p className="text-xs text-gray-500">
+              Fecha: {formatFechaLargoCR(fechaObjetivo)}
+            </p>
+            <div className="flex justify-center gap-3 mt-3">
+              <button
+                onClick={() => setDetalles(null)}
+                className="text-sm bg-blue-600 text-white py-1 px-4 rounded-lg hover:bg-blue-700"
+              >
+                ⬅ Volver
+              </button>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 mb-2">
-            Fecha: {formatFechaLargoCR(fechaObjetivo)}
-          </p>
 
           <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
             <div
@@ -616,8 +606,7 @@ export default function SupervisorMenu({ usuario }) {
             />
           </div>
           <p className="text-sm text-center text-gray-700 mb-4">
-            {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos (
-            {porcentajeAvance}%)
+            {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos ({porcentajeAvance}%)
           </p>
 
           {pendientes.length === 0 ? (
@@ -634,11 +623,20 @@ export default function SupervisorMenu({ usuario }) {
                   <div>
                     <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
                     <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
-                    <p className="text-sm text-gray-700 mb-1">
-                      Saldo actual: ₡{pdv.saldo?.toLocaleString("es-CR") || 0}
+                    <p className="text-sm text-gray-700">
+                      Saldo actual: ₡{formatNumber(pdv.saldo)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Promedio semanal: {formatNumber(pdv.promedio_semanal)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Última compra:{" "}
+                      {pdv.fecha_ultima_compra
+                        ? new Date(pdv.fecha_ultima_compra).toLocaleDateString("es-CR")
+                        : "N/D"}
                     </p>
                     <p
-                      className={`text-xs font-semibold ${
+                      className={`text-xs font-semibold mt-1 ${
                         pdv.porcentaje === 25
                           ? "text-red-600"
                           : pdv.porcentaje === 50
@@ -698,7 +696,13 @@ export default function SupervisorMenu({ usuario }) {
                         </p>
                       )}
                     </div>
-                    <span className="text-xs text-gray-600">{formatHora(a)}</span>
+                    <span className="text-xs text-gray-600">
+                      {a.hora ||
+                        new Date(a.created_at).toLocaleTimeString("es-CR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -724,36 +728,34 @@ export default function SupervisorMenu({ usuario }) {
     );
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+    <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
       <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-3">
-            <span>{semaforo}</span>
-            <span>
-              {vista === "actual"
-                ? `Supervisión — ${usuario.region}`
-                : `Desabasto Día Anterior — ${usuario.region}`}
-            </span>
-            <span className="text-sm text-gray-500 font-normal">
-              {vista === "anterior"
-                ? formatFechaLargoCR(isoNDiasAtras(1))
-                : formatFechaLargoCR(hoyISO())}
-            </span>
-          </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setVista("menu")}
-              className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
-            >
-              ⬅ Menú
-            </button>
-            <button
-              onClick={() => cargarAgentesGenerico(vista === "actual" ? 0 : 1)}
-              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
-            >
-              🔄 Actualizar
-            </button>
-          </div>
+        <h2 className="text-xl font-semibold text-gray-800 text-center">
+          {semaforo}{" "}
+          {vista === "actual"
+            ? `Supervisión — ${usuario.region}`
+            : `Desabasto Día Anterior — ${usuario.region}`}
+        </h2>
+        <p className="text-sm text-gray-500 text-center mb-3">
+          {vista === "anterior"
+            ? formatFechaLargoCR(isoNDiasAtras(1))
+            : formatFechaLargoCR(hoyISO())}
+        </p>
+
+        {/* Botones centrados debajo del título */}
+        <div className="flex justify-center gap-3 mb-4">
+          <button
+            onClick={() => setVista("menu")}
+            className="text-sm bg-gray-500 text-white py-1 px-4 rounded-lg hover:bg-gray-600"
+          >
+            ⬅ Menú
+          </button>
+          <button
+            onClick={() => cargarAgentesGenerico(vista === "actual" ? 0 : 1)}
+            className="text-sm bg-blue-600 text-white py-1 px-4 rounded-lg hover:bg-blue-700"
+          >
+            🔄 Actualizar
+          </button>
         </div>
 
         <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
