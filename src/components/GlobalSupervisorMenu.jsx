@@ -29,6 +29,15 @@ export default function GlobalSupervisorMenu({ usuario }) {
   // Zona horaria y helpers de fecha
   const TZ = "America/Costa_Rica";
 
+  // === FORMATOS ===
+  const formatCRNumber = (num) => {
+    if (num == null || isNaN(num)) return "₡0.00";
+    return "₡" + Number(num).toLocaleString("es-CR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   const hoyISO = () => {
     const nowCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
     const y = nowCR.getFullYear();
@@ -57,6 +66,20 @@ export default function GlobalSupervisorMenu({ usuario }) {
       day: "2-digit",
       month: "short",
     });
+
+  const formatFechaSimple = (iso) => {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (isNaN(d)) return "—";
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yy = d.getFullYear();
+      return `${dd}/${mm}/${yy}`;
+    } catch {
+      return "—";
+    }
+  };
 
   const formatFechaLargoCR = (iso) =>
     parseISOasCRDate(iso).toLocaleDateString("es-CR", {
@@ -265,7 +288,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
     const { data: registros } = await supabase
       .from("vw_desabasto_unicos")
-      .select("mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
+      .select("mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
       .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
       .in("saldo_menor_al_promedio_diario", ["Menor al 25%", "Menor al 50%", "Menor al 75%"])
       .gte("fecha_carga", inicio)
@@ -405,7 +428,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
       setLoading(false);
     }
   }, []);
-
   // Histórico por agentes en una región (7 días)
   const cargarResumenHistoricoRegion = async (regionNorm) => {
     setLoading(true);
@@ -496,9 +518,9 @@ export default function GlobalSupervisorMenu({ usuario }) {
   // Menú principal
   if (vista === "menu") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="flex flex-col justify-center items-center w-full px-4">
-          <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
+        <div className="flex flex-col justify-center items-center w-full">
+          <div className="bg-white shadow-lg rounded-3xl p-8 text-center w-full max-w-md animate-fadeIn">
             <h2 className="text-xl font-semibold mb-6 text-gray-800">
               Supervisión Global — Todas las Regiones
             </h2>
@@ -514,7 +536,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
               </button>
               <button
                 onClick={() => {
-                  setOffsetDiasCtx(1); // exactamente ayer según CR
+                  setOffsetDiasCtx(1);
                   setVista("anterior");
                 }}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-lg font-semibold"
@@ -545,9 +567,9 @@ export default function GlobalSupervisorMenu({ usuario }) {
     } = resumenGlobal;
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
-          <div className="flex justify-between items-center mb-4">
+          <div className="text-center mb-3">
             <h2 className="text-xl font-semibold text-gray-800">
               {semaforo}{" "}
               {offsetDiasCtx === 1
@@ -556,16 +578,16 @@ export default function GlobalSupervisorMenu({ usuario }) {
                   )})`
                 : `Supervisión Global — Todas las Regiones (${formatFechaLargoCR(hoyISO())})`}
             </h2>
-            <div className="flex gap-2">
+            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
               <button
                 onClick={() => setVista("menu")}
-                className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
+                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
               >
                 ⬅ Menú
               </button>
               <button
                 onClick={() => cargarResumenGlobalGenerico(offsetDiasCtx)}
-                className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
+                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
               >
                 🔄 Actualizar
               </button>
@@ -618,7 +640,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
-
   // Vista: agentes por región
   if (vista === "region" && regionSeleccionada) {
     const totalZonaDesabasto = agentesRegion.reduce((s, a) => s + (a.totalDesabasto || 0), 0);
@@ -632,27 +653,27 @@ export default function GlobalSupervisorMenu({ usuario }) {
     else if (porcentajeZona >= 50) colorZona = "bg-orange-500";
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
-          <div className="flex justify-between items-center mb-4">
+          <div className="text-center mb-3">
             <h2 className="text-xl font-semibold text-gray-800">
               {obtenerSemaforo(porcentajeZona)} SUPERVISIÓN GLOBAL — {regionSeleccionada.toUpperCase()} (
               {formatFechaLargoCR(isoNDiasAtras(offsetDiasCtx))})
             </h2>
-            <div className="flex gap-2">
+            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
               <button
                 onClick={() => {
                   setRegionSeleccionada(null);
                   setAgentesRegion([]);
                   setVista(offsetDiasCtx === 1 ? "anterior" : "actual");
                 }}
-                className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
+                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
               >
                 ⬅ Regiones
               </button>
               <button
                 onClick={() => cargarRegion(regionSeleccionada, offsetDiasCtx)}
-                className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
+                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
               >
                 🔄 Actualizar
               </button>
@@ -677,7 +698,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                   <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                     <span>{a.semaforo}</span> {a.nombre}
                   </h3>
-                  <p className="text-xs text-gray-500 mb-1">Ruta {a.ruta_excel}</p>
+                    <p className="text-xs text-gray-500 mb-1">Ruta {a.ruta_excel}</p>
                   <div className="bg-gray-300 rounded-full h-3 overflow-hidden mb-2">
                     <div className={`${a.colorBarra} h-3`} style={{ width: `${a.porcentajeAvance}%` }} />
                   </div>
@@ -730,40 +751,37 @@ export default function GlobalSupervisorMenu({ usuario }) {
     };
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-4xl animate-fadeIn">
-          <div className="flex justify-between items-center mb-1">
+          <div className="text-center mb-2">
             <h2 className="text-lg font-semibold text-gray-800">
               {semaforo} SUPERVISIÓN — {regionSeleccionada.toUpperCase()} — {agenteSeleccionado.nombre}
             </h2>
-          </div>
-          <p className="text-xs text-gray-500 mb-3">
-            Fecha: {formatFechaLargoCR(fechaObjetivo)}
-          </p>
-
-          <div className="flex justify-between items-center mb-3">
-            <div className="bg-gray-300 rounded-full h-4 overflow-hidden flex-1 mr-4">
-              <div className={`${colorRuta} h-4`} style={{ width: `${porcentajeAvance}%` }} />
-            </div>
-            <div className="flex gap-2">
+            <p className="text-xs text-gray-500 mb-3">
+              Fecha: {formatFechaSimple(fechaObjetivo)}
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-2">
               <button
                 onClick={() => {
                   setDetallesAgente(null);
                   setVista("region");
                 }}
-                className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
+                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
               >
                 ⬅ Agentes
               </button>
               <button
                 onClick={() => cargarDetalleAgente(agenteSeleccionado)}
-                className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
+                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
               >
                 🔄 Actualizar
               </button>
             </div>
           </div>
 
+          <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
+            <div className={`${colorRuta} h-4`} style={{ width: `${porcentajeAvance}%` }} />
+          </div>
           <p className="text-sm text-center text-gray-700 mb-4">
             {totalAtendidos} de {totalDesabasto} PDV atendidos ({porcentajeAvance}%)
           </p>
@@ -776,8 +794,14 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 <div key={i} className="rounded-xl shadow-md p-4 border border-gray-200 bg-white">
                   <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
                   <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
+                  <p className="text-sm text-gray-700">
+                    Saldo: {formatCRNumber(pdv.saldo)}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    Promedio semanal: {formatCRNumber(pdv.promedio_semanal)}
+                  </p>
                   <p className="text-sm text-gray-700 mb-1">
-                    Saldo: ₡{pdv.saldo?.toLocaleString("es-CR") || 0}
+                    Última compra: {pdv.fecha_ultima_compra ? formatFechaSimple(pdv.fecha_ultima_compra) : "—"}
                   </p>
                   <p
                     className={`text-xs font-semibold ${
@@ -843,7 +867,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
-
   // Vista: histórico global por región
   if (vista === "historico") {
     const grupos = historico.reduce((acc, r) => {
@@ -868,26 +891,31 @@ export default function GlobalSupervisorMenu({ usuario }) {
       .sort((a, b) => b.avgAvance - a.avgAvance);
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">
-                📈 Resumen Histórico — Últimos 7 días
-              </h2>
-              {fechaRango.inicio && fechaRango.fin && (
-                <p className="text-sm text-gray-600 mt-1">
-                  📆 Datos desde {formatFechaLargoCR(fechaRango.inicio)} hasta{" "}
-                  {formatFechaLargoCR(fechaRango.fin)}
-                </p>
-              )}
+          <div className="text-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">
+              📈 Resumen Histórico — Últimos 7 días
+            </h2>
+            {fechaRango.inicio && fechaRango.fin && (
+              <p className="text-sm text-gray-600 mt-1">
+                📆 Datos desde {formatFechaLargoCR(fechaRango.inicio)} hasta {formatFechaLargoCR(fechaRango.fin)}
+              </p>
+            )}
+            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+              <button
+                onClick={() => setVista("menu")}
+                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
+              >
+                ⬅ Menú
+              </button>
+              <button
+                onClick={cargarResumenHistorico}
+                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
+              >
+                🔄 Actualizar
+              </button>
             </div>
-            <button
-              onClick={() => setVista("menu")}
-              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
-            >
-              ⬅ Menú
-            </button>
           </div>
 
           {loading ? (
@@ -1041,26 +1069,31 @@ export default function GlobalSupervisorMenu({ usuario }) {
       .sort((a, b) => b.avgAvance - a.avgAvance);
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">
-                📈 Resumen Histórico — Región {regionSeleccionada} — Últimos 7 días
-              </h2>
-              {fechaRangoRegion.inicio && fechaRangoRegion.fin && (
-                <p className="text-sm text-gray-600 mt-1">
-                  📆 Datos desde {formatFechaLargoCR(fechaRangoRegion.inicio)} hasta{" "}
-                  {formatFechaLargoCR(fechaRangoRegion.fin)}
-                </p>
-              )}
+          <div className="text-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">
+              📈 Resumen Histórico — Región {regionSeleccionada} — Últimos 7 días
+            </h2>
+            {fechaRangoRegion.inicio && fechaRangoRegion.fin && (
+              <p className="text-sm text-gray-600 mt-1">
+                📆 Datos desde {formatFechaLargoCR(fechaRangoRegion.inicio)} hasta {formatFechaLargoCR(fechaRangoRegion.fin)}
+              </p>
+            )}
+            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+              <button
+                onClick={() => setVista("historico")}
+                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
+              >
+                ⬅ Volver a histórico global
+              </button>
+              <button
+                onClick={() => cargarResumenHistoricoRegion(regionSeleccionada)}
+                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
+              >
+                🔄 Actualizar
+              </button>
             </div>
-            <button
-              onClick={() => setVista("historico")}
-              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
-            >
-              ⬅ Volver a histórico global
-            </button>
           </div>
 
           {loading ? (
