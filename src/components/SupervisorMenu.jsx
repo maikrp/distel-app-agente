@@ -96,6 +96,7 @@ export default function SupervisorMenu({ usuario }) {
 
         let totalZonaDesabasto = 0;
         let totalZonaAtendidos = 0;
+        let totalZonaEfectivos = 0;
 
         const agentesConDatos = await Promise.all(
           (agentesData || []).map(async (agente) => {
@@ -116,20 +117,29 @@ export default function SupervisorMenu({ usuario }) {
 
             const { data: atenciones } = await supabase
               .from("atenciones_agentes")
-              .select("mdn_usuario")
+              .select("mdn_usuario, resultado")
               .eq("agente", agente.nombre)
               .eq("fecha", fecha);
 
             const totalDesabasto = registros?.length || 0;
             const totalAtendidos = atenciones?.length || 0;
+            const efectivosAgente = (atenciones || []).filter(
+              (a) => a.resultado === "efectivo"
+            ).length;
 
             const porcentajeAvance =
               totalDesabasto > 0
                 ? Math.round((totalAtendidos / totalDesabasto) * 100)
                 : 0;
 
+            const porcentajeEfectivosAgente =
+              totalAtendidos > 0
+                ? Math.round((efectivosAgente / totalAtendidos) * 100)
+                : 0;
+
             totalZonaDesabasto += totalDesabasto;
             totalZonaAtendidos += totalAtendidos;
+            totalZonaEfectivos += efectivosAgente;
 
             let colorBarra = "bg-red-600";
             if (porcentajeAvance >= 80 && porcentajeAvance < 100)
@@ -142,6 +152,7 @@ export default function SupervisorMenu({ usuario }) {
               totalDesabasto,
               totalAtendidos,
               porcentajeAvance,
+              porcentajeEfectivosAgente,
               colorBarra,
               semaforo: obtenerSemaforo(porcentajeAvance),
             };
@@ -161,6 +172,11 @@ export default function SupervisorMenu({ usuario }) {
             ? Math.round((totalZonaAtendidos / totalZonaDesabasto) * 100)
             : 0;
 
+        const porcentajeEfectivosZona =
+          totalZonaAtendidos > 0
+            ? Math.round((totalZonaEfectivos / totalZonaAtendidos) * 100)
+            : 0;
+
         let colorZona = "bg-red-600";
         if (porcentajeZona >= 80 && porcentajeZona < 100)
           colorZona = "bg-yellow-400";
@@ -171,6 +187,7 @@ export default function SupervisorMenu({ usuario }) {
           totalZonaDesabasto,
           totalZonaAtendidos,
           porcentajeZona,
+          porcentajeEfectivosZona,
           colorZona,
           semaforo: obtenerSemaforo(porcentajeZona),
         });
@@ -559,6 +576,7 @@ export default function SupervisorMenu({ usuario }) {
       </div>
     );
   }
+
   // ==== Vista: detalles de una ruta ====
   if (detalles) {
     const {
@@ -606,7 +624,8 @@ export default function SupervisorMenu({ usuario }) {
             />
           </div>
           <p className="text-sm text-center text-gray-700 mb-4">
-            {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos ({porcentajeAvance}%)
+            {totalAtendidos} de {totalDesabasto} PDV en desabasto atendidos ({porcentajeAvance}%) |{" "}
+            Efectivos: {porcentajeEfectivos}%
           </p>
 
           {pendientes.length === 0 ? (
@@ -697,11 +716,7 @@ export default function SupervisorMenu({ usuario }) {
                       )}
                     </div>
                     <span className="text-xs text-gray-600">
-                      {a.hora ||
-                        new Date(a.created_at).toLocaleTimeString("es-CR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      {formatHora(a)}
                     </span>
                   </div>
                 ))}
@@ -718,6 +733,7 @@ export default function SupervisorMenu({ usuario }) {
     totalZonaDesabasto = 0,
     totalZonaAtendidos = 0,
     porcentajeZona = 0,
+    porcentajeEfectivosZona = 0,
     colorZona = "bg-red-600",
     semaforo = "🔴",
   } = resumenZona;
@@ -766,7 +782,7 @@ export default function SupervisorMenu({ usuario }) {
         </div>
         <p className="text-sm text-center text-gray-700 mb-4">
           {totalZonaAtendidos} de {totalZonaDesabasto} PDV en desabasto atendidos (
-          {porcentajeZona}%)
+          {porcentajeZona}%) | Efectivos: {porcentajeEfectivosZona}%
         </p>
 
         {agentes.length === 0 ? (
@@ -795,7 +811,7 @@ export default function SupervisorMenu({ usuario }) {
                 </div>
                 <p className="text-xs text-gray-700 mb-2">
                   {a.totalAtendidos} de {a.totalDesabasto} PDV en desabasto atendidos (
-                  {a.porcentajeAvance}%)
+                  {a.porcentajeAvance}%) | Efectivos: {a.porcentajeEfectivosAgente}%
                 </p>
 
                 <button

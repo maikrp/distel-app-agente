@@ -6,7 +6,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
   // Vistas: menu | actual | anterior | historico | region | agente | historicoRegionAgentes
   const [vista, setVista] = useState("menu");
 
-  // Contexto de fecha: 0=hoy, 1=ayer (CR). Se mantiene en sub-vistas.
+  // Contexto de fecha: 0=hoy, 1=ayer (CR).
   const [offsetDiasCtx, setOffsetDiasCtx] = useState(0);
 
   // Estados globales
@@ -26,17 +26,8 @@ export default function GlobalSupervisorMenu({ usuario }) {
   const [historicoRegionAgentes, setHistoricoRegionAgentes] = useState([]);
   const [fechaRangoRegion, setFechaRangoRegion] = useState({ inicio: null, fin: null });
 
-  // Zona horaria y helpers de fecha
+  // ==== Zona horaria y helpers de fecha ====
   const TZ = "America/Costa_Rica";
-
-  // === FORMATOS ===
-  const formatCRNumber = (num) => {
-    if (num == null || isNaN(num)) return "₡0.00";
-    return "₡" + Number(num).toLocaleString("es-CR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
 
   const hoyISO = () => {
     const nowCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
@@ -56,40 +47,44 @@ export default function GlobalSupervisorMenu({ usuario }) {
   };
 
   const parseISOasCRDate = (iso) => {
+    if (!iso) return null;
     const [y, m, d] = iso.split("-").map(Number);
+    // Fija mediodía UTC para evitar saltos por TZ
     return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   };
 
   const formatFechaCortoCR = (iso) =>
-    parseISOasCRDate(iso).toLocaleDateString("es-CR", {
+    parseISOasCRDate(iso)?.toLocaleDateString("es-CR", {
       timeZone: TZ,
       day: "2-digit",
       month: "short",
-    });
-
-  const formatFechaSimple = (iso) => {
-    if (!iso) return "—";
-    try {
-      const d = new Date(iso);
-      if (isNaN(d)) return "—";
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const yy = d.getFullYear();
-      return `${dd}/${mm}/${yy}`;
-    } catch {
-      return "—";
-    }
-  };
+    }) || "";
 
   const formatFechaLargoCR = (iso) =>
-    parseISOasCRDate(iso).toLocaleDateString("es-CR", {
+    parseISOasCRDate(iso)?.toLocaleDateString("es-CR", {
       timeZone: TZ,
       day: "2-digit",
       month: "short",
       year: "numeric",
-    });
+    }) || "";
 
-  // Visual
+  // Solo fecha dd/mm/yyyy
+  const formatSoloFechaCR = (iso) =>
+    parseISOasCRDate(iso)?.toLocaleDateString("es-CR", {
+      timeZone: TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }) || "";
+
+  // ==== Formateo números ====
+  const formatCRC = (val) => {
+    const n = Number(val ?? 0);
+    // Requiere coma para miles y 2 decimales: 17,520.00
+    return `₡${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  // ==== Semáforo ====
   const obtenerSemaforo = (p) => {
     if (p === 100) return "🟢";
     if (p >= 80) return "🟡";
@@ -97,7 +92,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     return "🔴";
   };
 
-  // Normalización de región
+  // ==== Normalización de región ====
   const normalizarRegion = (r) => {
     const n = (r || "").trim().toLowerCase();
     if (!n) return null;
@@ -110,7 +105,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
   // ===================== CARGAS =====================
 
-  // Resumen global por fecha (hoy o ayer)
+  // Resumen global por fecha (hoy o ayer) con Avance y Efectividad
   const cargarResumenGlobalGenerico = useCallback(async (offsetDias = 0) => {
     setLoading(true);
     const fecha = isoNDiasAtras(offsetDias);
@@ -134,34 +129,46 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
       let totalGlobalDesabasto = 0;
       let totalGlobalAtendidos = 0;
+      let totalGlobalEfectivos = 0;
 
       const regionesConDatos = await Promise.all(
         Object.keys(regionesMap).map(async (regionKey) => {
           const agentesRegionLocal = regionesMap[regionKey];
           let totalRegionDesabasto = 0;
           let totalRegionAtendidos = 0;
+          let totalRegionEfectivos = 0;
 
           await Promise.all(
             agentesRegionLocal.map(async (agente) => {
               const { data: registros } = await supabase
                 .from("vw_desabasto_unicos")
-                .select("mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
+                .select(
+                  "mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+                )
                 .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
-                .in("saldo_menor_al_promedio_diario", ["Menor al 25%", "Menor al 50%", "Menor al 75%"])
+                .in("saldo_menor_al_promedio_diario", [
+                  "Menor al 25%",
+                  "Menor al 50%",
+                  "Menor al 75%",
+                ])
                 .gte("fecha_carga", `${fecha}T00:00:00`)
                 .lte("fecha_carga", `${fecha}T23:59:59`);
 
               const { data: atenciones } = await supabase
                 .from("atenciones_agentes")
-                .select("mdn_usuario")
+                .select("mdn_usuario, resultado")
                 .eq("agente", agente.nombre)
                 .eq("fecha", fecha);
 
               const totalDesabasto = registros?.length || 0;
               const totalAtendidos = atenciones?.length || 0;
+              const efectivos = (atenciones || []).filter(
+                (x) => x.resultado === "efectivo"
+              ).length;
 
               totalRegionDesabasto += totalDesabasto;
               totalRegionAtendidos += totalAtendidos;
+              totalRegionEfectivos += efectivos;
             })
           );
 
@@ -170,8 +177,14 @@ export default function GlobalSupervisorMenu({ usuario }) {
               ? Math.round((totalRegionAtendidos / totalRegionDesabasto) * 100)
               : 0;
 
+          const porcentajeEfectivos =
+            totalRegionAtendidos > 0
+              ? Math.round((totalRegionEfectivos / totalRegionAtendidos) * 100)
+              : 0;
+
           totalGlobalDesabasto += totalRegionDesabasto;
           totalGlobalAtendidos += totalRegionAtendidos;
+          totalGlobalEfectivos += totalRegionEfectivos;
 
           let colorBarra = "bg-red-600";
           if (porcentajeAvance >= 80 && porcentajeAvance < 100) colorBarra = "bg-yellow-400";
@@ -182,7 +195,9 @@ export default function GlobalSupervisorMenu({ usuario }) {
             region: regionKey,
             totalRegionDesabasto,
             totalRegionAtendidos,
+            totalRegionEfectivos,
             porcentajeAvance,
+            porcentajeEfectivos,
             colorBarra,
             semaforo: obtenerSemaforo(porcentajeAvance),
           };
@@ -194,6 +209,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
           ? Math.round((totalGlobalAtendidos / totalGlobalDesabasto) * 100)
           : 0;
 
+      const porcentajeEfectivosGlobal =
+        totalGlobalAtendidos > 0
+          ? Math.round((totalGlobalEfectivos / totalGlobalAtendidos) * 100)
+          : 0;
+
       let colorGlobal = "bg-red-600";
       if (porcentajeGlobal >= 80 && porcentajeGlobal < 100) colorGlobal = "bg-yellow-400";
       else if (porcentajeGlobal === 100) colorGlobal = "bg-green-600";
@@ -202,7 +222,9 @@ export default function GlobalSupervisorMenu({ usuario }) {
       setResumenGlobal({
         totalGlobalDesabasto,
         totalGlobalAtendidos,
+        totalGlobalEfectivos,
         porcentajeGlobal,
+        porcentajeEfectivosGlobal,
         colorGlobal,
         semaforo: obtenerSemaforo(porcentajeGlobal),
       });
@@ -217,7 +239,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     }
   }, []);
 
-  // Agentes de una región por fecha
+  // Agentes de una región por fecha, con Avance y Efectividad de la región
   const cargarRegion = async (regionNorm, offsetDias = 0) => {
     setLoading(true);
     setRegionSeleccionada(regionNorm);
@@ -236,24 +258,41 @@ export default function GlobalSupervisorMenu({ usuario }) {
       .map((a) => ({ ...a, region_norm: normalizarRegion(a.region) }))
       .filter((a) => a.region_norm === regionNorm && a.ruta_excel);
 
+    let regionAtendidos = 0;
+    let regionEfectivos = 0;
+    let regionDesabasto = 0;
+
     const agentesConDatos = await Promise.all(
       agentesRegionLocal.map(async (agente) => {
         const { data: registros } = await supabase
           .from("vw_desabasto_unicos")
-          .select("mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
+          .select(
+            "mdn_usuario, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+          )
           .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
-          .in("saldo_menor_al_promedio_diario", ["Menor al 25%", "Menor al 50%", "Menor al 75%"])
+          .in("saldo_menor_al_promedio_diario", [
+            "Menor al 25%",
+            "Menor al 50%",
+            "Menor al 75%",
+          ])
           .gte("fecha_carga", `${fecha}T00:00:00`)
           .lte("fecha_carga", `${fecha}T23:59:59`);
 
         const { data: atenciones } = await supabase
           .from("atenciones_agentes")
-          .select("mdn_usuario")
+          .select("mdn_usuario, resultado")
           .eq("agente", agente.nombre)
           .eq("fecha", fecha);
 
         const totalDesabasto = registros?.length || 0;
         const totalAtendidos = atenciones?.length || 0;
+        const efectivos = (atenciones || []).filter(
+          (x) => x.resultado === "efectivo"
+        ).length;
+
+        regionDesabasto += totalDesabasto;
+        regionAtendidos += totalAtendidos;
+        regionEfectivos += efectivos;
 
         const porcentajeAvance =
           totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
@@ -267,6 +306,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
           ...agente,
           totalDesabasto,
           totalAtendidos,
+          efectivos,
           porcentajeAvance,
           colorBarra,
           semaforo: obtenerSemaforo(porcentajeAvance),
@@ -274,12 +314,42 @@ export default function GlobalSupervisorMenu({ usuario }) {
       })
     );
 
+    // Guardamos lista de agentes ordenada
     setAgentesRegion(agentesConDatos.sort((a, b) => b.porcentajeAvance - a.porcentajeAvance));
+
+    // Guardamos resumen de región para encabezado de la vista "region"
+    const porcentajeZona =
+      regionDesabasto > 0 ? Math.round((regionAtendidos / regionDesabasto) * 100) : 0;
+    const porcentajeEfectivosZona =
+      regionAtendidos > 0 ? Math.round((regionEfectivos / regionAtendidos) * 100) : 0;
+
+    setResumenGlobal((prev) => ({
+      ...prev,
+      // sobreescribimos temporalmente métricas de región seleccionada para el header de vista region
+      regionResumenTemp: {
+        region: regionNorm,
+        totalRegionDesabasto: regionDesabasto,
+        totalRegionAtendidos: regionAtendidos,
+        totalRegionEfectivos: regionEfectivos,
+        porcentajeZona,
+        porcentajeEfectivosZona,
+        colorZona:
+          porcentajeZona >= 100
+            ? "bg-green-600"
+            : porcentajeZona >= 80
+            ? "bg-yellow-400"
+            : porcentajeZona >= 50
+            ? "bg-orange-500"
+            : "bg-red-600",
+        semaforo: obtenerSemaforo(porcentajeZona),
+      },
+    }));
+
     setLoading(false);
     setVista("region");
   };
-
-  // Detalle de agente con pendientes = registros - atendidos (usa offsetDiasCtx)
+  // ==== (sigue en Parte 2) ====
+  // Detalle del agente con pendientes, atendidos, avance y efectividad
   const cargarDetalleAgente = async (agente) => {
     setLoading(true);
     const fechaObjetivo = isoNDiasAtras(offsetDiasCtx);
@@ -288,9 +358,15 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
     const { data: registros } = await supabase
       .from("vw_desabasto_unicos")
-      .select("mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta")
+      .select(
+        "mdn_usuario, pdv, saldo, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+      )
       .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
-      .in("saldo_menor_al_promedio_diario", ["Menor al 25%", "Menor al 50%", "Menor al 75%"])
+      .in("saldo_menor_al_promedio_diario", [
+        "Menor al 25%",
+        "Menor al 50%",
+        "Menor al 75%",
+      ])
       .gte("fecha_carga", inicio)
       .lte("fecha_carga", fin);
 
@@ -316,40 +392,40 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
     const totalDesabasto = registros?.length || 0;
     const totalAtendidos = atenciones?.length || 0;
+    const efectivos = (atenciones || []).filter((x) => x.resultado === "efectivo").length;
+    const noEfectivos = (atenciones || []).filter((x) => x.resultado === "no efectivo").length;
+
     const porcentajeAvance =
       totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
+
+    const porcentajeEfectivos =
+      totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
 
     let colorRuta = "bg-red-600";
     if (porcentajeAvance >= 80 && porcentajeAvance < 100) colorRuta = "bg-yellow-400";
     else if (porcentajeAvance === 100) colorRuta = "bg-green-600";
     else if (porcentajeAvance >= 50) colorRuta = "bg-orange-500";
 
-    const efectivos = (atenciones || []).filter((a) => a.resultado === "efectivo").length;
-    const noEfectivos = (atenciones || []).filter((a) => a.resultado === "no efectivo").length;
-    const total = (atenciones || []).length || 1;
-    const porcentajeEfectivos = Math.round((efectivos / total) * 100);
-    const porcentajeNoEfectivos = Math.round((noEfectivos / total) * 100);
-
     setDetallesAgente({
       pendientes,
-      atenciones: atenciones || [],
+      atenciones,
       totalDesabasto,
       totalAtendidos,
-      porcentajeAvance,
-      colorRuta,
-      semaforo: obtenerSemaforo(porcentajeAvance),
       efectivos,
       noEfectivos,
+      porcentajeAvance,
       porcentajeEfectivos,
-      porcentajeNoEfectivos,
+      colorRuta,
+      semaforo: obtenerSemaforo(porcentajeAvance),
       fechaObjetivo,
     });
+
     setAgenteSeleccionado(agente);
     setLoading(false);
     setVista("agente");
   };
 
-  // Histórico global (por región) 7 días
+  // Histórico global (por región) últimos 7 días
   const cargarResumenHistorico = useCallback(async () => {
     setLoading(true);
     try {
@@ -428,6 +504,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
       setLoading(false);
     }
   }, []);
+
   // Histórico por agentes en una región (7 días)
   const cargarResumenHistoricoRegion = async (regionNorm) => {
     setLoading(true);
@@ -474,7 +551,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
           const porcentajeAvance =
             desabastoAg > 0 ? Math.round((totalAtendidos / desabastoAg) * 100) : 0;
-
           const porcentajeEfectivos =
             totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
 
@@ -512,15 +588,14 @@ export default function GlobalSupervisorMenu({ usuario }) {
     if (vista === "anterior") cargarResumenGlobalGenerico(1);
     if (vista === "historico") cargarResumenHistorico();
   }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico]);
-
   // ===================== VISTAS =====================
 
-  // Menú principal
+  // ===== Menú principal =====
   if (vista === "menu") {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
-        <div className="flex flex-col justify-center items-center w-full">
-          <div className="bg-white shadow-lg rounded-3xl p-8 text-center w-full max-w-md animate-fadeIn">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+        <div className="flex flex-col justify-center items-center w-full max-w-md">
+          <div className="bg-white shadow-lg rounded-3xl p-8 text-center w-full animate-fadeIn">
             <h2 className="text-xl font-semibold mb-6 text-gray-800">
               Supervisión Global — Todas las Regiones
             </h2>
@@ -547,7 +622,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 onClick={() => setVista("historico")}
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-semibold"
               >
-                📈 Ver Resumen de Avance por Región (7 días)
+                📈 Resumen de Avance por Región (7 días)
               </button>
             </div>
           </div>
@@ -556,38 +631,41 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Vista: lista de regiones (hoy o ayer)
+  // ===== Vista: lista de regiones (hoy o ayer) =====
   if (vista === "actual" || vista === "anterior") {
     const {
       totalGlobalDesabasto = 0,
       totalGlobalAtendidos = 0,
+      totalGlobalEfectivos = 0,
       porcentajeGlobal = 0,
+      porcentajeEfectivosGlobal = 0,
       colorGlobal = "bg-red-600",
       semaforo = "🔴",
     } = resumenGlobal;
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-6">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
-          <div className="text-center mb-3">
-            <h2 className="text-xl font-semibold text-gray-800">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 text-center md:text-left">
               {semaforo}{" "}
               {offsetDiasCtx === 1
-                ? `Desabasto Día Anterior — Todas las Regiones (${formatFechaLargoCR(
+                ? `Desabasto Día Anterior — Todas las Regiones (${formatSoloFechaCR(
                     isoNDiasAtras(1)
                   )})`
-                : `Supervisión Global — Todas las Regiones (${formatFechaLargoCR(hoyISO())})`}
+                : `Supervisión Global — Todas las Regiones (${formatSoloFechaCR(hoyISO())})`}
             </h2>
-            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+
+            <div className="flex gap-2 mt-2 md:mt-0">
               <button
                 onClick={() => setVista("menu")}
-                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
+                className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
               >
                 ⬅ Menú
               </button>
               <button
                 onClick={() => cargarResumenGlobalGenerico(offsetDiasCtx)}
-                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
+                className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
               >
                 🔄 Actualizar
               </button>
@@ -598,7 +676,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
             <div className={`${colorGlobal} h-4`} style={{ width: `${porcentajeGlobal}%` }} />
           </div>
           <p className="text-sm text-center text-gray-700 mb-6">
-            Avance Global: {porcentajeGlobal}% — {totalGlobalAtendidos} de {totalGlobalDesabasto} PDV atendidos
+            Avance Global: {porcentajeGlobal}% | Efectividad:{" "}
+            <span className="text-blue-600 font-semibold">
+              {porcentajeEfectivosGlobal}%
+            </span>{" "}
+            — {totalGlobalAtendidos} de {totalGlobalDesabasto} PDV atendidos
           </p>
 
           {regiones.length === 0 ? (
@@ -608,15 +690,25 @@ export default function GlobalSupervisorMenu({ usuario }) {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {regiones.map((r, i) => (
-                <div key={i} className="rounded-xl shadow-md p-4 border border-gray-200 bg-white">
+                <div
+                  key={i}
+                  className="rounded-xl shadow-md p-4 border border-gray-200 bg-white transition-transform hover:scale-[1.02]"
+                >
                   <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-1">
                     <span>{r.semaforo}</span> ZONA {r.region?.toUpperCase()}
                   </h3>
                   <div className="bg-gray-300 rounded-full h-3 overflow-hidden mb-2">
-                    <div className={`${r.colorBarra} h-3`} style={{ width: `${r.porcentajeAvance}%` }} />
+                    <div
+                      className={`${r.colorBarra} h-3`}
+                      style={{ width: `${r.porcentajeAvance}%` }}
+                    />
                   </div>
                   <p className="text-xs text-gray-700 mb-2">
-                    {r.totalRegionAtendidos} de {r.totalRegionDesabasto} PDV atendidos ({r.porcentajeAvance}%)
+                    Avance: {r.porcentajeAvance}% |{" "}
+                    <span className="text-blue-600 font-semibold">
+                      Efectividad: {r.porcentajeEfectivos}%
+                    </span>{" "}
+                    — {r.totalRegionAtendidos} / {r.totalRegionDesabasto}
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -640,40 +732,43 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
-  // Vista: agentes por región
-  if (vista === "region" && regionSeleccionada) {
-    const totalZonaDesabasto = agentesRegion.reduce((s, a) => s + (a.totalDesabasto || 0), 0);
-    const totalZonaAtendidos = agentesRegion.reduce((s, a) => s + (a.totalAtendidos || 0), 0);
-    const porcentajeZona =
-      totalZonaDesabasto > 0 ? Math.round((totalZonaAtendidos / totalZonaDesabasto) * 100) : 0;
 
-    let colorZona = "bg-red-600";
-    if (porcentajeZona >= 80 && porcentajeZona < 100) colorZona = "bg-yellow-400";
-    else if (porcentajeZona === 100) colorZona = "bg-green-600";
-    else if (porcentajeZona >= 50) colorZona = "bg-orange-500";
+  // ===== Vista: agentes por región =====
+  if (vista === "region" && regionSeleccionada) {
+    const resumenTemp = resumenGlobal.regionResumenTemp || {};
+    const {
+      totalRegionDesabasto = 0,
+      totalRegionAtendidos = 0,
+      totalRegionEfectivos = 0,
+      porcentajeZona = 0,
+      porcentajeEfectivosZona = 0,
+      colorZona = "bg-red-600",
+      semaforo = "🔴",
+    } = resumenTemp;
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-6">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
-          <div className="text-center mb-3">
-            <h2 className="text-xl font-semibold text-gray-800">
-              {obtenerSemaforo(porcentajeZona)} SUPERVISIÓN GLOBAL — {regionSeleccionada.toUpperCase()} (
-              {formatFechaLargoCR(isoNDiasAtras(offsetDiasCtx))})
+          <div className="flex flex-col md:flex-row justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 text-center md:text-left">
+              {semaforo} SUPERVISIÓN GLOBAL — {regionSeleccionada.toUpperCase()} (
+              {formatSoloFechaCR(isoNDiasAtras(offsetDiasCtx))})
             </h2>
-            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
+
+            <div className="flex gap-2 mt-2 md:mt-0">
               <button
                 onClick={() => {
                   setRegionSeleccionada(null);
                   setAgentesRegion([]);
                   setVista(offsetDiasCtx === 1 ? "anterior" : "actual");
                 }}
-                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
+                className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
               >
                 ⬅ Regiones
               </button>
               <button
                 onClick={() => cargarRegion(regionSeleccionada, offsetDiasCtx)}
-                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
+                className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
               >
                 🔄 Actualizar
               </button>
@@ -684,7 +779,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
             <div className={`${colorZona} h-4`} style={{ width: `${porcentajeZona}%` }} />
           </div>
           <p className="text-sm text-center text-gray-700 mb-4">
-            {totalZonaAtendidos} de {totalZonaDesabasto} PDV atendidos ({porcentajeZona}%)
+            Avance: {porcentajeZona}% |{" "}
+            <span className="text-blue-600 font-semibold">
+              Efectividad: {porcentajeEfectivosZona}%
+            </span>{" "}
+            — {totalRegionAtendidos} / {totalRegionDesabasto} PDV atendidos
           </p>
 
           {agentesRegion.length === 0 ? (
@@ -694,16 +793,30 @@ export default function GlobalSupervisorMenu({ usuario }) {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {agentesRegion.map((a) => (
-                <div key={a.id} className="rounded-xl shadow-md p-4 border border-gray-200 bg-white">
+                <div
+                  key={a.id}
+                  className="rounded-xl shadow-md p-4 border border-gray-200 bg-white transition-transform hover:scale-[1.02]"
+                >
                   <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                     <span>{a.semaforo}</span> {a.nombre}
                   </h3>
-                    <p className="text-xs text-gray-500 mb-1">Ruta {a.ruta_excel}</p>
+                  <p className="text-xs text-gray-500 mb-1">Ruta {a.ruta_excel}</p>
                   <div className="bg-gray-300 rounded-full h-3 overflow-hidden mb-2">
-                    <div className={`${a.colorBarra} h-3`} style={{ width: `${a.porcentajeAvance}%` }} />
+                    <div
+                      className={`${a.colorBarra} h-3`}
+                      style={{ width: `${a.porcentajeAvance}%` }}
+                    />
                   </div>
                   <p className="text-xs text-gray-700 mb-2">
-                    {a.totalAtendidos} de {a.totalDesabasto} PDV atendidos ({a.porcentajeAvance}%)
+                    Avance: {a.porcentajeAvance}% |{" "}
+                    <span className="text-blue-600 font-semibold">
+                      Efectividad:{" "}
+                      {a.totalAtendidos > 0
+                        ? Math.round((a.efectivos / a.totalAtendidos) * 100)
+                        : 0}
+                      %
+                    </span>{" "}
+                    — {a.totalAtendidos} / {a.totalDesabasto}
                   </p>
                   <button
                     onClick={() => cargarDetalleAgente(a)}
@@ -719,21 +832,19 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
-
-  // Vista: detalle del agente (pendientes ya excluye atendidos)
+  // ===== Vista: detalle del agente =====
   if (vista === "agente" && detallesAgente && agenteSeleccionado && regionSeleccionada) {
     const {
       pendientes,
       atenciones,
       totalDesabasto,
       totalAtendidos,
-      porcentajeAvance,
-      colorRuta,
-      semaforo,
       efectivos,
       noEfectivos,
+      porcentajeAvance,
       porcentajeEfectivos,
-      porcentajeNoEfectivos,
+      colorRuta,
+      semaforo,
       fechaObjetivo,
     } = detallesAgente;
 
@@ -751,39 +862,44 @@ export default function GlobalSupervisorMenu({ usuario }) {
     };
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 py-6">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-4xl animate-fadeIn">
-          <div className="text-center mb-2">
-            <h2 className="text-lg font-semibold text-gray-800">
+          <div className="flex flex-col md:flex-row justify-between items-center mb-2">
+            <h2 className="text-lg font-semibold text-gray-800 text-center md:text-left">
               {semaforo} SUPERVISIÓN — {regionSeleccionada.toUpperCase()} — {agenteSeleccionado.nombre}
             </h2>
-            <p className="text-xs text-gray-500 mb-3">
-              Fecha: {formatFechaSimple(fechaObjetivo)}
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-2">
+            <div className="flex gap-2 mt-2 md:mt-0">
               <button
                 onClick={() => {
                   setDetallesAgente(null);
                   setVista("region");
                 }}
-                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
+                className="text-sm bg-gray-500 text-white py-1 px-3 rounded-lg hover:bg-gray-600"
               >
                 ⬅ Agentes
               </button>
               <button
                 onClick={() => cargarDetalleAgente(agenteSeleccionado)}
-                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
+                className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
               >
                 🔄 Actualizar
               </button>
             </div>
           </div>
 
+          <p className="text-xs text-gray-500 mb-3">
+            Fecha: {formatSoloFechaCR(fechaObjetivo)}
+          </p>
+
           <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
             <div className={`${colorRuta} h-4`} style={{ width: `${porcentajeAvance}%` }} />
           </div>
           <p className="text-sm text-center text-gray-700 mb-4">
-            {totalAtendidos} de {totalDesabasto} PDV atendidos ({porcentajeAvance}%)
+            Avance: {porcentajeAvance}% |{" "}
+            <span className="text-blue-600 font-semibold">
+              Efectividad: {porcentajeEfectivos}%
+            </span>{" "}
+            — {totalAtendidos} de {totalDesabasto} PDV atendidos
           </p>
 
           {pendientes.length === 0 ? (
@@ -794,14 +910,8 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 <div key={i} className="rounded-xl shadow-md p-4 border border-gray-200 bg-white">
                   <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
                   <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
-                  <p className="text-sm text-gray-700">
-                    Saldo: {formatCRNumber(pdv.saldo)}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    Promedio semanal: {formatCRNumber(pdv.promedio_semanal)}
-                  </p>
                   <p className="text-sm text-gray-700 mb-1">
-                    Última compra: {pdv.fecha_ultima_compra ? formatFechaSimple(pdv.fecha_ultima_compra) : "—"}
+                    Saldo: {formatCRC(pdv.saldo)}
                   </p>
                   <p
                     className={`text-xs font-semibold ${
@@ -823,8 +933,8 @@ export default function GlobalSupervisorMenu({ usuario }) {
             <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6 text-center">
               <h3 className="text-md font-semibold text-gray-800 mb-2">Resumen del día</h3>
               <div className="flex justify-around text-sm font-semibold">
-                <p className="text-green-600">🟢 Efectivos: {efectivos} ({porcentajeEfectivos}%)</p>
-                <p className="text-red-600">🔴 No efectivos: {noEfectivos} ({porcentajeNoEfectivos}%)</p>
+                <p className="text-green-600">🟢 Efectivos: {efectivos}</p>
+                <p className="text-red-600">🔴 No efectivos: {noEfectivos}</p>
               </div>
             </div>
           )}
@@ -867,7 +977,8 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
-  // Vista: histórico global por región
+
+  // ===== Vista: histórico global por región =====
   if (vista === "historico") {
     const grupos = historico.reduce((acc, r) => {
       if (!acc[r.region]) acc[r.region] = [];
@@ -891,39 +1002,32 @@ export default function GlobalSupervisorMenu({ usuario }) {
       .sort((a, b) => b.avgAvance - a.avgAvance);
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl">
-          <div className="text-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-800">
-              📈 Resumen Histórico — Últimos 7 días
-            </h2>
-            {fechaRango.inicio && fechaRango.fin && (
-              <p className="text-sm text-gray-600 mt-1">
-                📆 Datos desde {formatFechaLargoCR(fechaRango.inicio)} hasta {formatFechaLargoCR(fechaRango.fin)}
-              </p>
-            )}
-            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
-              <button
-                onClick={() => setVista("menu")}
-                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
-              >
-                ⬅ Menú
-              </button>
-              <button
-                onClick={cargarResumenHistorico}
-                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
-              >
-                🔄 Actualizar
-              </button>
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">
+                📈 Resumen Histórico — Últimos 7 días
+              </h2>
+              {fechaRango.inicio && fechaRango.fin && (
+                <p className="text-sm text-gray-600 mt-1">
+                  📆 {formatSoloFechaCR(fechaRango.inicio)} a{" "}
+                  {formatSoloFechaCR(fechaRango.fin)}
+                </p>
+              )}
             </div>
+            <button
+              onClick={() => setVista("menu")}
+              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
+            >
+              ⬅ Menú
+            </button>
           </div>
 
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Cargando...</p>
           ) : regionesOrdenadas.length === 0 ? (
-            <p className="text-center text-gray-500 mt-4">
-              No hay datos históricos disponibles.
-            </p>
+            <p className="text-center text-gray-500 mt-4">No hay datos históricos disponibles.</p>
           ) : (
             regionesOrdenadas.map((rg, idx) => (
               <div key={rg.region} className="mb-6 border-t border-gray-300 pt-4">
@@ -931,58 +1035,17 @@ export default function GlobalSupervisorMenu({ usuario }) {
                   <h3 className="text-md font-bold text-gray-800">
                     {idx + 1}. 🗺️ Región {rg.region}
                   </h3>
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm text-gray-600">
-                      Promedio Avance:{" "}
-                      <span
-                        className={
-                          rg.avgAvance >= 100
-                            ? "text-green-600 font-semibold"
-                            : rg.avgAvance >= 80
-                            ? "text-yellow-600 font-semibold"
-                            : rg.avgAvance >= 50
-                            ? "text-orange-600 font-semibold"
-                            : "text-red-600 font-semibold"
-                        }
-                      >
-                        {rg.avgAvance}%
-                      </span>{" "}
-                      | Efectivos:{" "}
-                      <span className="text-blue-600 font-semibold">{rg.avgEfectivos}%</span>
-                    </p>
-                    <button
-                      onClick={() => cargarResumenHistoricoRegion(rg.region)}
-                      className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg"
-                    >
-                      📊 Ver detalle por agentes
-                    </button>
-                  </div>
+                  <p className="text-sm text-gray-600">
+                    Avance:{" "}
+                    <span className="font-semibold text-green-600">{rg.avgAvance}%</span> |{" "}
+                    Efectividad:{" "}
+                    <span className="font-semibold text-blue-600">{rg.avgEfectivos}%</span>
+                  </p>
                 </div>
 
-                <div
-                  className="relative overflow-x-auto border rounded-lg shadow-sm"
-                  onScroll={(e) => {
-                    const el = e.target;
-                    const left = el.querySelector(".scroll-shadow-left");
-                    const right = el.querySelector(".scroll-shadow-right");
-                    if (!left || !right) return;
-                    const atStart = el.scrollLeft <= 5;
-                    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 5;
-                    left.style.opacity = atStart ? "0" : "1";
-                    right.style.opacity = atEnd ? "0" : "1";
-                  }}
-                >
-                  <div
-                    className="scroll-shadow-left absolute top-0 left-0 w-6 h-full bg-gradient-to-r from-gray-300/70 transition-opacity duration-300 pointer-events-none"
-                    style={{ opacity: 0 }}
-                  />
-                  <div
-                    className="scroll-shadow-right absolute top-0 right-0 w-6 h-full bg-gradient-to-l from-gray-300/70 transition-opacity duration-300 pointer-events-none"
-                    style={{ opacity: 1 }}
-                  />
-
+                <div className="overflow-x-auto border rounded-lg shadow-sm">
                   <table className="min-w-[600px] w-full text-sm border-collapse">
-                    <thead className="bg-gray-200 text-gray-800 sticky top-0 z-10">
+                    <thead className="bg-gray-200 text-gray-800">
                       <tr>
                         <th className="p-2 text-left">Fecha</th>
                         <th className="p-2 text-center">Desabasto</th>
@@ -993,21 +1056,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
                     </thead>
                     <tbody>
                       {rg.registros.map((r, i) => (
-                        <tr key={i} className="border-b hover:bg-gray-50 transition-colors">
-                          <td className="p-2">{formatFechaCortoCR(r.fecha)}</td>
+                        <tr key={i} className="border-b hover:bg-gray-50">
+                          <td className="p-2">{formatSoloFechaCR(r.fecha)}</td>
                           <td className="p-2 text-center">{r.desabasto}</td>
                           <td className="p-2 text-center">{r.atendidos}</td>
-                          <td
-                            className={`p-2 text-center font-semibold ${
-                              r.porcentajeAvance >= 100
-                                ? "text-green-600"
-                                : r.porcentajeAvance >= 80
-                                ? "text-yellow-600"
-                                : r.porcentajeAvance >= 50
-                                ? "text-orange-600"
-                                : "text-red-600"
-                            }`}
-                          >
+                          <td className="p-2 text-center text-green-600 font-semibold">
                             {r.porcentajeAvance}%
                           </td>
                           <td className="p-2 text-center text-blue-600 font-semibold">
@@ -1015,25 +1068,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
                           </td>
                         </tr>
                       ))}
-                      <tr className="bg-gray-100 font-semibold">
-                        <td className="p-2 text-center">Promedio</td>
-                        <td className="p-2 text-center">—</td>
-                        <td className="p-2 text-center">—</td>
-                        <td
-                          className={`p-2 text-center ${
-                            rg.avgAvance >= 100
-                              ? "text-green-600"
-                              : rg.avgAvance >= 80
-                              ? "text-yellow-600"
-                              : rg.avgAvance >= 50
-                              ? "text-orange-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {rg.avgAvance}%
-                        </td>
-                        <td className="p-2 text-center text-blue-600">{rg.avgEfectivos}%</td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -1045,7 +1079,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Vista: histórico por agentes de una región
+  // ===== Vista: histórico por agentes de una región =====
   if (vista === "historicoRegionAgentes" && regionSeleccionada) {
     const grupos = historicoRegionAgentes.reduce((acc, r) => {
       if (!acc[r.agente]) acc[r.agente] = [];
@@ -1069,90 +1103,32 @@ export default function GlobalSupervisorMenu({ usuario }) {
       .sort((a, b) => b.avgAvance - a.avgAvance);
 
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4 sm:py-6 sm:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl">
-          <div className="text-center mb-4">
+          <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-800">
-              📈 Resumen Histórico — Región {regionSeleccionada} — Últimos 7 días
+              📈 Histórico — Región {regionSeleccionada} (7 días)
             </h2>
-            {fechaRangoRegion.inicio && fechaRangoRegion.fin && (
-              <p className="text-sm text-gray-600 mt-1">
-                📆 Datos desde {formatFechaLargoCR(fechaRangoRegion.inicio)} hasta {formatFechaLargoCR(fechaRangoRegion.fin)}
-              </p>
-            )}
-            <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-2">
-              <button
-                onClick={() => setVista("historico")}
-                className="text-sm bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 w-full sm:w-auto"
-              >
-                ⬅ Volver a histórico global
-              </button>
-              <button
-                onClick={() => cargarResumenHistoricoRegion(regionSeleccionada)}
-                className="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 w-full sm:w-auto"
-              >
-                🔄 Actualizar
-              </button>
-            </div>
+            <button
+              onClick={() => setVista("historico")}
+              className="text-sm bg-blue-600 text-white py-1 px-3 rounded-lg hover:bg-blue-700"
+            >
+              ⬅ Volver
+            </button>
           </div>
 
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Cargando...</p>
-          ) : agentesOrdenados.length === 0 ? (
-            <p className="text-center text-gray-500 mt-4">
-              No hay datos históricos para esta región.
-            </p>
           ) : (
             agentesOrdenados.map((ag, idx) => (
               <div key={ag.agente} className="mb-6 border-t border-gray-300 pt-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-md font-bold text-gray-800">
-                    {idx + 1}. 👤 {ag.agente}
-                  </h3>
-                  <p className="text-sm text-gray-600">
-                    Promedio Avance:{" "}
-                    <span
-                      className={
-                        ag.avgAvance >= 100
-                          ? "text-green-600 font-semibold"
-                          : ag.avgAvance >= 80
-                          ? "text-yellow-600 font-semibold"
-                          : ag.avgAvance >= 50
-                          ? "text-orange-600 font-semibold"
-                          : "text-red-600 font-semibold"
-                      }
-                    >
-                      {ag.avgAvance}%
-                    </span>{" "}
-                    | Efectivos:{" "}
-                    <span className="text-blue-600 font-semibold">{ag.avgEfectivos}%</span>
-                  </p>
-                </div>
-
-                <div
-                  className="relative overflow-x-auto border rounded-lg shadow-sm"
-                  onScroll={(e) => {
-                    const el = e.target;
-                    const left = el.querySelector(".scroll-shadow-left");
-                    const right = el.querySelector(".scroll-shadow-right");
-                    if (!left || !right) return;
-                    const atStart = el.scrollLeft <= 5;
-                    const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 5;
-                    left.style.opacity = atStart ? "0" : "1";
-                    right.style.opacity = atEnd ? "0" : "1";
-                  }}
-                >
-                  <div
-                    className="scroll-shadow-left absolute top-0 left-0 w-6 h-full bg-gradient-to-r from-gray-300/70 transition-opacity duration-300 pointer-events-none"
-                    style={{ opacity: 0 }}
-                  />
-                  <div
-                    className="scroll-shadow-right absolute top-0 right-0 w-6 h-full bg-gradient-to-l from-gray-300/70 transition-opacity duration-300 pointer-events-none"
-                    style={{ opacity: 1 }}
-                  />
-
+                <h3 className="text-md font-bold text-gray-800 mb-2">
+                  {idx + 1}. 👤 {ag.agente} — Avance {ag.avgAvance}% |{" "}
+                  <span className="text-blue-600">Efectividad {ag.avgEfectivos}%</span>
+                </h3>
+                <div className="overflow-x-auto border rounded-lg shadow-sm">
                   <table className="min-w-[600px] w-full text-sm border-collapse">
-                    <thead className="bg-gray-200 text-gray-800 sticky top-0 z-10">
+                    <thead className="bg-gray-200 text-gray-800">
                       <tr>
                         <th className="p-2 text-left">Fecha</th>
                         <th className="p-2 text-center">Desabasto</th>
@@ -1163,21 +1139,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
                     </thead>
                     <tbody>
                       {ag.registros.map((r, i) => (
-                        <tr key={i} className="border-b hover:bg-gray-50 transition-colors">
-                          <td className="p-2">{formatFechaCortoCR(r.fecha)}</td>
+                        <tr key={i} className="border-b hover:bg-gray-50">
+                          <td className="p-2">{formatSoloFechaCR(r.fecha)}</td>
                           <td className="p-2 text-center">{r.desabasto}</td>
                           <td className="p-2 text-center">{r.atendidos}</td>
-                          <td
-                            className={`p-2 text-center font-semibold ${
-                              r.porcentajeAvance >= 100
-                                ? "text-green-600"
-                                : r.porcentajeAvance >= 80
-                                ? "text-yellow-600"
-                                : r.porcentajeAvance >= 50
-                                ? "text-orange-600"
-                                : "text-red-600"
-                            }`}
-                          >
+                          <td className="p-2 text-center text-green-600 font-semibold">
                             {r.porcentajeAvance}%
                           </td>
                           <td className="p-2 text-center text-blue-600 font-semibold">
@@ -1185,25 +1151,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
                           </td>
                         </tr>
                       ))}
-                      <tr className="bg-gray-100 font-semibold">
-                        <td className="p-2 text-center">Promedio</td>
-                        <td className="p-2 text-center">—</td>
-                        <td className="p-2 text-center">—</td>
-                        <td
-                          className={`p-2 text-center ${
-                            ag.avgAvance >= 100
-                              ? "text-green-600"
-                              : ag.avgAvance >= 80
-                              ? "text-yellow-600"
-                              : ag.avgAvance >= 50
-                              ? "text-orange-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {ag.avgAvance}%
-                        </td>
-                        <td className="p-2 text-center text-blue-600">{ag.avgEfectivos}%</td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>
@@ -1215,7 +1162,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Fallback de carga
+  // ===== Cierre general =====
   if (loading) {
     return <p className="text-center text-gray-500 mt-6">Cargando información...</p>;
   }
