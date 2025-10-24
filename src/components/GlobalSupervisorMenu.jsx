@@ -534,7 +534,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     return (
       <div className="min-h-screen sm:min-h-[90vh] flex items-start sm:items-center justify-center bg-gray-100 px-4 py-6 sm:py-10 overflow-hidden">
         <div className="flex flex-col justify-center items-center w-full px-4">
-          <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn">
+          <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn sm:mt-[-250px]">
             <h2 className="text-xl font-semibold mb-6 text-gray-800">
               Supervisión Global — Todas las Regiones
             </h2>
@@ -584,7 +584,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
     return (
       <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
-        <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
+        <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn sm:mt-[-150px]">
           <div className="text-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
               {semaforo}{" "}

@@ -5,18 +5,23 @@ import AgentDashboard from "./components/AgentDashboard";
 import SupervisorMenu from "./components/SupervisorMenu";
 import GlobalSupervisorMenu from "./components/GlobalSupervisorMenu";
 
+// 🔹 nuevas importaciones
+import EmulatorModal from "./components/EmulatorModal";
+import useEmulatorMode from "./hooks/useEmulatorMode";
+
 export default function App() {
   const [telefono, setTelefono] = useState("");
   const [clave, setClave] = useState("");
   const [nuevaClave, setNuevaClave] = useState("");
   const [confirmarClave, setConfirmarClave] = useState("");
-  // === CAMBIO: persistencia de sesión ===
   const [usuario, setUsuario] = useState(() => {
     const stored = localStorage.getItem("usuario");
     return stored ? JSON.parse(stored) : null;
   });
   const [loading, setLoading] = useState(false);
   const [requiereCambio, setRequiereCambio] = useState(false);
+
+  const isDesktop = useEmulatorMode(); // 🔹 detectar modo escritorio
 
   // === LOGIN ===
   const handleLogin = async () => {
@@ -51,14 +56,14 @@ export default function App() {
 
     if (agente.clave_temporal) {
       setUsuario(agente);
-      localStorage.setItem("usuario", JSON.stringify(agente)); // 🔹 persistir
+      localStorage.setItem("usuario", JSON.stringify(agente));
       setRequiereCambio(true);
       setLoading(false);
       return;
     }
 
     setUsuario(agente);
-    localStorage.setItem("usuario", JSON.stringify(agente)); // 🔹 persistir
+    localStorage.setItem("usuario", JSON.stringify(agente));
     setLoading(false);
   };
 
@@ -93,7 +98,7 @@ export default function App() {
     alert("Clave actualizada correctamente. Puede continuar.");
     const actualizado = { ...usuario, clave_temporal: false };
     setUsuario(actualizado);
-    localStorage.setItem("usuario", JSON.stringify(actualizado)); // 🔹 actualizar local
+    localStorage.setItem("usuario", JSON.stringify(actualizado));
     setRequiereCambio(false);
     setLoading(false);
   };
@@ -106,7 +111,7 @@ export default function App() {
     setNuevaClave("");
     setConfirmarClave("");
     setRequiereCambio(false);
-    localStorage.removeItem("usuario"); // 🔹 limpiar persistencia
+    localStorage.removeItem("usuario");
   };
 
   // === Bloquear botón "atrás" del navegador una vez logueado ===
@@ -134,7 +139,6 @@ export default function App() {
     };
   }, []);
 
-  // === Permitir presionar ENTER ===
   const handleKeyPressLogin = (e) => {
     if (e.key === "Enter") handleLogin();
   };
@@ -142,142 +146,136 @@ export default function App() {
     if (e.key === "Enter") handleCambioClave();
   };
 
-  // === LOGIN SCREEN ===
-  if (!usuario) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-        <div className="bg-white shadow-lg rounded-3xl p-8 w-full max-w-sm border border-gray-200 text-center animate-fadeIn">
-          <div className="flex items-center justify-center space-x-6 mb-6">
-            <img src="/liberty.png" alt="Logo Liberty" className="w-24 h-24 object-contain" />
-            <img src="/logo_distel.png" alt="Logo Distel" className="w-24 h-24 object-contain" />
-          </div>
-
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Bienvenido</h1>
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">
-            Control de Clientes en Desabasto
-          </h2>
-          <p className="text-gray-600 mb-6">Ingrese su número y clave</p>
-
-          <input
-            type="tel"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={telefono}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, "");
-              setTelefono(val);
-            }}
-            onKeyDown={handleKeyPressLogin}
-            placeholder="Ejemplo: 60123456"
-            className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength="4"
-            value={clave}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, "");
-              setClave(val);
-            }}
-            onKeyDown={handleKeyPressLogin}
-            placeholder="Clave (4 dígitos)"
-            className="border rounded-lg p-3 w-full text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-
-          <button
-            onClick={handleLogin}
-            disabled={loading}
-            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition-all disabled:opacity-50"
-          >
-            {loading ? "Verificando..." : "Ingresar"}
-          </button>
-
-          <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema de Control de Desabasto
-          </p>
+  const loginScreen = (
+  <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="w-full flex items-center justify-center">
+      <div className="bg-white shadow-lg rounded-3xl p-8 text-center border border-gray-200 animate-fadeIn"
+           style={{
+             width: "360px",
+             maxWidth: "90%",
+             transform: "scale(1)",
+             marginTop: "-240px",  // 🔹 sube la tarjeta
+           }}>
+        <div className="flex items-center justify-center space-x-6 mb-6">
+          <img src="/liberty.png" alt="Logo Liberty" className="w-24 h-24 object-contain" />
+          <img src="/logo_distel.png" alt="Logo Distel" className="w-24 h-24 object-contain" />
         </div>
+
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Bienvenido</h1>
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">
+          Control de Clientes en Desabasto
+        </h2>
+        <p className="text-gray-600 mb-6">Ingrese su número y clave</p>
+
+        <input
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={handleKeyPressLogin}
+          placeholder="Ejemplo: 60123456"
+          className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength="4"
+          value={clave}
+          onChange={(e) => setClave(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={handleKeyPressLogin}
+          placeholder="Clave (4 dígitos)"
+          className="border rounded-lg p-3 w-full text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition-all disabled:opacity-50"
+        >
+          {loading ? "Verificando..." : "Ingresar"}
+        </button>
+
+        <p className="text-xs text-gray-400 mt-6">
+          © 2025 Distel — Sistema de Control de Desabasto
+        </p>
       </div>
-    );
-  }
+    </div>
+  </div>
+);
 
   // === CAMBIO DE CLAVE (primer ingreso) ===
-  if (requiereCambio) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-        <div className="bg-white shadow-lg rounded-3xl p-8 w-full max-w-sm border border-gray-200 text-center animate-fadeIn">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">
-            Hola {usuario.nombre}
-          </h2>
-          <p className="text-gray-700 mb-4">
-            Por seguridad, debe cambiar su clave temporal antes de continuar.
-          </p>
+  const cambioClaveScreen = (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="bg-white shadow-lg rounded-3xl p-8 w-full max-w-sm border border-gray-200 text-center animate-fadeIn">
+        <h2 className="text-lg font-bold text-gray-800 mb-4">
+          Hola {usuario?.nombre || ""}
+        </h2>
+        <p className="text-gray-700 mb-4">
+          Por seguridad, debe cambiar su clave temporal antes de continuar.
+        </p>
 
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength="4"
-            value={nuevaClave}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, "");
-              setNuevaClave(val);
-            }}
-            onKeyDown={handleKeyPressCambio}
-            placeholder="Nueva clave (4 dígitos)"
-            className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength="4"
+          value={nuevaClave}
+          onChange={(e) => {
+            const val = e.target.value.replace(/\D/g, "");
+            setNuevaClave(val);
+          }}
+          onKeyDown={handleKeyPressCambio}
+          placeholder="Nueva clave (4 dígitos)"
+          className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
 
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength="4"
-            value={confirmarClave}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, "");
-              setConfirmarClave(val);
-            }}
-            onKeyDown={handleKeyPressCambio}
-            placeholder="Confirmar nueva clave"
-            className="border rounded-lg p-3 w-full text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength="4"
+          value={confirmarClave}
+          onChange={(e) => {
+            const val = e.target.value.replace(/\D/g, "");
+            setConfirmarClave(val);
+          }}
+          onKeyDown={handleKeyPressCambio}
+          placeholder="Confirmar nueva clave"
+          className="border rounded-lg p-3 w-full text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
 
-          <button
-            onClick={handleCambioClave}
-            disabled={loading}
-            className="mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition-all disabled:opacity-50"
-          >
-            {loading ? "Actualizando..." : "Guardar nueva clave"}
-          </button>
+        <button
+          onClick={handleCambioClave}
+          disabled={loading}
+          className="mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition-all disabled:opacity-50"
+        >
+          {loading ? "Actualizando..." : "Guardar nueva clave"}
+        </button>
 
-          <button
-            onClick={handleLogout}
-            className="mt-3 text-sm text-gray-600 underline"
-          >
-            Cancelar
-          </button>
-        </div>
+        <button onClick={handleLogout} className="mt-3 text-sm text-gray-600 underline">
+          Cancelar
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
 
   // === DASHBOARD ===
-  return (
+  const dashboardScreen = usuario ? (
     <div className="min-h-screen bg-gray-50">
       <div className="flex justify-between items-center p-4 bg-blue-700 text-white">
         <div>
-          <h2 className="text-lg font-semibold">{usuario.nombre}</h2>
+          <h2 className="text-lg font-semibold">{usuario?.nombre}</h2>
           <p className="text-sm">
-            {usuario.tipo} —{" "}
-            {usuario.acceso?.toLowerCase() === "global"
+            {usuario?.tipo} —{" "}
+            {usuario?.acceso?.toLowerCase() === "global"
               ? "GLOBAL"
-              : usuario.region?.toUpperCase()}
+              : usuario?.region?.toUpperCase()}
           </p>
-          {usuario.ruta_excel && (
-            <p className="text-xs text-blue-100">Ruta: {usuario.ruta_excel}</p>
+          {usuario?.ruta_excel && (
+            <p className="text-xs text-blue-100">Ruta: {usuario?.ruta_excel}</p>
           )}
         </div>
 
@@ -290,9 +288,9 @@ export default function App() {
       </div>
 
       <div className="p-4">
-        {usuario.acceso === "ruta" && <AgentDashboard usuario={usuario} />}
-        {usuario.acceso === "regional" && <SupervisorMenu usuario={usuario} />}
-        {usuario.acceso === "global" && <GlobalSupervisorMenu usuario={usuario} />}
+        {usuario?.acceso === "ruta" && <AgentDashboard usuario={usuario} />}
+        {usuario?.acceso === "regional" && <SupervisorMenu usuario={usuario} />}
+        {usuario?.acceso === "global" && <GlobalSupervisorMenu usuario={usuario} />}
       </div>
 
       <footer
@@ -302,14 +300,32 @@ export default function App() {
           fontSize: "14px",
           color: "#555",
           backgroundColor: "#f9f9f9",
-          position: "fixed",
-          bottom: 0,
-          width: "100%",
           borderTop: "1px solid #ddd",
+          marginTop: "auto",
         }}
       >
-        © 2025 Distel — Sistema de Control de Desabasto
-      </footer>
+  © 2025 Distel — Sistema de Control de Desabasto
+</footer>
+
     </div>
+  ) : null;
+
+  // === Render final con emulador si aplica ===
+  let contenido = !usuario
+    ? loginScreen
+    : requiereCambio
+    ? cambioClaveScreen
+    : dashboardScreen;
+
+  const wrapperClass = isDesktop ? "emulator-desktop-mode" : "";
+
+  return isDesktop ? (
+    <EmulatorModal showBackButton={!!usuario} onBack={handleLogout}>
+      <div className={wrapperClass}>
+        {contenido}
+      </div>
+    </EmulatorModal>
+  ) : (
+    contenido
   );
 }

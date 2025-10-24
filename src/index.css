@@ -2,10 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
+/* === Estilos del emulador móvil === */
+.emulator-bg {
+  background-color: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(6px);
+}
+
+/* Oculta scrollbars dentro del teléfono */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Animación de entrada */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .animate-fadeIn {
-  animation: fadeIn 0.4s ease-in-out;
+  animation: fadeIn 0.3s ease-in-out forwards;
+}
+/* === Ajuste dinámico para vistas internas === */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Las pantallas internas dentro del marco tablet */
+#root > div,
+.min-h-screen,
+.bg-gray-50,
+.bg-gray-100 {
+  max-width: 100%;
+  height: auto;
+  overflow-y: auto;
+}
+
+/* Ajuste de texto y elementos */
+h1, h2, h3, h4, h5 {
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+@media (max-width: 1280px) {
+  .text-lg {
+    font-size: 1rem;
+  }
+  .text-xl {
+    font-size: 1.1rem;
+  }
+  .p-4, .p-6 {
+    padding: 1rem;
+  }
+}
+/* Sólo en emulación escritorio/tablet */
+.emulator-desktop-mode {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  padding: 0;
+  margin: 0 auto;
+}
+
+/* Asegurar que los h1-h2 no se corten */
+.emulator-desktop-mode h1,
+.emulator-desktop-mode h2 {
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* Ancho completo para contenedores de dashboard etc */
+.emulator-desktop-mode .max-w-sm,
+.emulator-desktop-mode .w-full {
+  max-width: none;
+  width: 100%;
 }
