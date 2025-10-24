@@ -349,105 +349,116 @@ export default function GlobalSupervisorMenu({ usuario }) {
     setVista("region");
   };
 
-  // Detalle de agente (últimos 7 días)
-  const cargarDetalleAgente = async (agente) => {
-    setLoading(true);
-    try {
-      const dias = Array.from({ length: 7 }, (_, i) => isoNDiasAtras(6 - i));
-      const registrosTotales = [];
-      const atencionesTotales = [];
+  // Detalle de agente (solo para "Seguimiento Desabasto Hoy" y "Día Anterior")
+const cargarDetalleAgente = async (agente) => {
+  setLoading(true);
+  try {
+    // Determinar fecha según vista
+    let fecha = isoNDiasAtras(0); // hoy
+    if (vista === "anterior") fecha = isoNDiasAtras(1); // ayer
 
-      // Recorremos cada día dentro de los últimos 7
-      for (const fecha of dias) {
-        const inicio = `${fecha}T00:00:00`;
-        const fin = `${fecha}T23:59:59`;
+    const inicio = `${fecha}T00:00:00`;
+    const fin = `${fecha}T23:59:59`;
 
-        // Desabasto
-        const { data: registrosDia } = await supabase
-          .from("vw_desabasto_unicos")
-          .select(
-            "mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
-          )
-          .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
-          .in("saldo_menor_al_promedio_diario", [
-            "Menor al 25%",
-            "Menor al 50%",
-            "Menor al 75%",
-          ])
-          .gte("fecha_carga", inicio)
-          .lte("fecha_carga", fin);
+    // === Datos de desabasto (según día) ===
+    const { data: registrosDia, error: errReg } = await supabase
+      .from("vw_desabasto_unicos")
+      .select(
+        "mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+      )
+      .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
+      .in("saldo_menor_al_promedio_diario", [
+        "Menor al 25%",
+        "Menor al 50%",
+        "Menor al 75%",
+      ])
+      .gte("fecha_carga", inicio)
+      .lte("fecha_carga", fin);
 
-        registrosTotales.push(...(registrosDia || []));
+    if (errReg) throw errReg;
 
-        // Atenciones
-        const { data: atencionesDia } = await supabase
-          .from("atenciones_agentes")
-          .select("id, mdn_usuario, pdv, hora, created_at, resultado, motivo_no_efectivo, fecha")
-          .eq("agente", agente.nombre)
-          .eq("fecha", fecha);
+    // === Atenciones del mismo día ===
+    const { data: atencionesDia, error: errAt } = await supabase
+      .from("atenciones_agentes")
+      .select(
+        "id, mdn_usuario, pdv, hora, created_at, resultado, motivo_no_efectivo, fecha"
+      )
+      .eq("agente", agente.nombre)
+      .eq("fecha", fecha);
 
-        atencionesTotales.push(...(atencionesDia || []));
-      }
+    if (errAt) throw errAt;
 
-      // Agrupamos
-      const atendidosIds = new Set(atencionesTotales.map((a) => String(a.mdn_usuario)));
+    // === Agrupar y calcular ===
+    const atendidosIds = new Set(atencionesDia.map((a) => String(a.mdn_usuario)));
 
-      const pendientes = (registrosTotales || [])
-        .filter((r) => !atendidosIds.has(String(r.mdn_usuario)))
-        .map((r) => {
-          const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
-          let porcentaje = 100;
-          if (t.includes("25")) porcentaje = 25;
-          else if (t.includes("50")) porcentaje = 50;
-          else if (t.includes("75")) porcentaje = 75;
-          return { ...r, porcentaje, mdn_usuario: String(r.mdn_usuario) };
-        })
-        .sort((a, b) => a.porcentaje - b.porcentaje);
+    const pendientes = (registrosDia || [])
+      .filter((r) => !atendidosIds.has(String(r.mdn_usuario)))
+      .map((r) => {
+        const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
+        let porcentaje = 100;
+        if (t.includes("25")) porcentaje = 25;
+        else if (t.includes("50")) porcentaje = 50;
+        else if (t.includes("75")) porcentaje = 75;
+        return { ...r, porcentaje, mdn_usuario: String(r.mdn_usuario) };
+      })
+      .sort((a, b) => a.porcentaje - b.porcentaje);
 
-      const totalDesabasto = registrosTotales?.length || 0;
-      const totalAtendidos = atencionesTotales?.length || 0;
-      const efectivos = (atencionesTotales || []).filter((a) => a.resultado === "efectivo").length;
-      const noEfectivos = (atencionesTotales || []).filter(
-        (a) => a.resultado === "no efectivo"
-      ).length;
+    const totalDesabasto = registrosDia?.length || 0;
+    const totalAtendidos = atencionesDia?.length || 0;
+    const efectivos = (atencionesDia || []).filter(
+      (a) => a.resultado === "efectivo"
+    ).length;
+    const noEfectivos = (atencionesDia || []).filter(
+      (a) => a.resultado === "no efectivo"
+    ).length;
 
-      const porcentajeAvance =
-        totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
-      const porcentajeEfectividad =
-        totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
-      const porcentajeNoEfectivos =
-        totalAtendidos > 0 ? Math.round((noEfectivos / totalAtendidos) * 100) : 0;
+    const porcentajeAvance =
+      totalDesabasto > 0
+        ? Math.round((totalAtendidos / totalDesabasto) * 100)
+        : 0;
+    const porcentajeEfectividad =
+      totalAtendidos > 0
+        ? Math.round((efectivos / totalAtendidos) * 100)
+        : 0;
+    const porcentajeNoEfectivos =
+      totalAtendidos > 0
+        ? Math.round((noEfectivos / totalAtendidos) * 100)
+        : 0;
 
-      let colorRuta = "bg-red-600";
-      if (porcentajeAvance >= 80 && porcentajeAvance < 100) colorRuta = "bg-yellow-400";
-      else if (porcentajeAvance === 100) colorRuta = "bg-green-600";
-      else if (porcentajeAvance >= 50) colorRuta = "bg-orange-500";
+    let colorRuta = "bg-red-600";
+    if (porcentajeAvance >= 80 && porcentajeAvance < 100)
+      colorRuta = "bg-yellow-400";
+    else if (porcentajeAvance === 100)
+      colorRuta = "bg-green-600";
+    else if (porcentajeAvance >= 50)
+      colorRuta = "bg-orange-500";
 
-      setDetallesAgente({
-        pendientes,
-        atenciones: atencionesTotales,
-        totalDesabasto,
-        totalAtendidos,
-        efectivos,
-        noEfectivos,
-        porcentajeAvance,
-        porcentajeEfectividad,
-        porcentajeNoEfectivos,
-        colorRuta,
-        semaforo: obtenerSemaforo(porcentajeAvance),
-        inicio7d: dias[0],
-        fin7d: dias[dias.length - 1],
-      });
+    // === Guardar resultado ===
+    setDetallesAgente({
+      pendientes,
+      atenciones: atencionesDia,
+      totalDesabasto,
+      totalAtendidos,
+      efectivos,
+      noEfectivos,
+      porcentajeAvance,
+      porcentajeEfectividad,
+      porcentajeNoEfectivos,
+      colorRuta,
+      semaforo: obtenerSemaforo(porcentajeAvance),
+      inicio7d: fecha,
+      fin7d: fecha,
+    });
 
-      setAgenteSeleccionado(agente);
-      setLoading(false);
-      setVista("agente");
-    } catch (err) {
-      console.error("Error en cargarDetalleAgente:", err.message);
-      setDetallesAgente(null);
-      setLoading(false);
-    }
-  };
+    setAgenteSeleccionado(agente);
+    setVista("agente");
+  } catch (err) {
+    console.error("Error en cargarDetalleAgente:", err.message);
+    setDetallesAgente(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Histórico global (por región) 7 días
   const cargarResumenHistorico = useCallback(async () => {
@@ -1258,7 +1269,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
         {motivosPorcentaje.length > 0 && (
           <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6">
             <h4 className="text-md font-semibold text-gray-800 mb-2 text-center">
-              🧾 Razones No Compra (últimos 7 días)
+              🧾 Razones No Compra (Hoy)
             </h4>
             <div className="flex flex-wrap justify-center gap-2">
               {motivosPorcentaje.map((m, i) => (
@@ -1674,7 +1685,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-6xl animate-fadeIn">
           <div className="text-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800 mb-1">
-              📊 Razones No Compra — {regionSeleccionada}
+              📊 Razones No Compra — Región {regionSeleccionada}
             </h2>
 
             {fechaRango.inicio && fechaRango.fin && (
@@ -1730,7 +1741,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 {a.motivosPorcentaje.length > 0 && (
                   <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
                     <h4 className="text-md font-semibold text-gray-800 mb-2 text-center">
-                      🧾 Razones No Compra
+                      🧾 Razones esumen de Motivos de No Compra
                     </h4>
                     <div className="flex flex-wrap justify-center gap-2">
                       {a.motivosPorcentaje.map((m, i) => (
