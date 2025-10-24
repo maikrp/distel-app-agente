@@ -28,25 +28,27 @@
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out forwards;
 }
-/* === Ajuste dinámico para vistas internas === */
+
+/* === Ajuste dinámico general === */
 html, body, #root {
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto; /* 🔹 habilita scroll vertical global */
 }
 
 * {
   box-sizing: border-box;
 }
 
-/* Las pantallas internas dentro del marco tablet */
+/* 🔹 Permitir scroll dentro de vistas internas */
 #root > div,
 .min-h-screen,
 .bg-gray-50,
 .bg-gray-100 {
   max-width: 100%;
   height: auto;
-  overflow-y: auto;
+  overflow-y: visible !important; /* habilita desplazamiento interno */
 }
 
 /* Ajuste de texto y elementos */
@@ -55,18 +57,26 @@ h1, h2, h3, h4, h5 {
   white-space: normal;
 }
 
-@media (max-width: 1280px) {
-  .text-lg {
-    font-size: 1rem;
-  }
-  .text-xl {
-    font-size: 1.1rem;
-  }
-  .p-4, .p-6 {
-    padding: 1rem;
-  }
+/* 🔹 Evita el rebote (pull-to-refresh) pero mantiene el scroll */
+body {
+  overscroll-behavior-y: contain;
 }
-/* Sólo en emulación escritorio/tablet */
+
+/* === Ajustes para tamaños menores (mobile) === */
+@media (max-width: 639px) {
+  .mobile-dvh { height: 100dvh; }
+  .mobile-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .min-h-0 { min-height: 0; }
+}
+
+/* === Ajustes de texto y padding === */
+@media (max-width: 1280px) {
+  .text-lg { font-size: 1rem; }
+  .text-xl { font-size: 1.1rem; }
+  .p-4, .p-6 { padding: 1rem; }
+}
+
+/* === Emulación escritorio/tablet === */
 .emulator-desktop-mode {
   width: 100%;
   height: 100%;
@@ -75,14 +85,14 @@ h1, h2, h3, h4, h5 {
   margin: 0 auto;
 }
 
-/* Asegurar que los h1-h2 no se corten */
+/* Evita que los títulos se corten */
 .emulator-desktop-mode h1,
 .emulator-desktop-mode h2 {
   white-space: normal;
   word-wrap: break-word;
 }
 
-/* Ancho completo para contenedores de dashboard etc */
+/* Ancho completo para contenedores grandes */
 .emulator-desktop-mode .max-w-sm,
 .emulator-desktop-mode .w-full {
   max-width: none;
