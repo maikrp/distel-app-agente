@@ -1286,7 +1286,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
-
   // Vista: histórico global por región (últimos 7 días) con scroll horizontal
   if (vista === "historico") {
     const grupos = historico.reduce((acc, r) => {
