@@ -123,39 +123,39 @@ export default function GlobalSupervisorMenu({ usuario }) {
      Utilitario: ajustar % de motivos a 100.00
      -------------------------------------------------------------------------- */
   const ajustarPorcentajes100 = (items) => {
-    const positivos = (items || [])
-      .map((x) => ({
-        motivo: x.motivo,
-        porcentaje: parseFloat(x.porcentaje || 0),
-        count: x.count || 0, // 👈 conservar el valor absoluto
-      }))
-      .filter((x) => x.porcentaje > 0);
+  const positivos = (items || [])
+    .map((x) => ({
+      motivo: x.motivo,
+      porcentaje: parseFloat(x.porcentaje || 0),
+      count: x.count || 0, // 👈 conservar el valor absoluto
+    }))
+    .filter((x) => x.porcentaje > 0);
 
-    if (positivos.length === 0) return [];
+  if (positivos.length === 0) return [];
 
-    let arr = positivos.map((x) => ({
-      ...x,
-      porcentaje: parseFloat(x.porcentaje.toFixed(2)),
-    }));
-    arr.sort((a, b) => b.porcentaje - a.porcentaje);
+  let arr = positivos.map((x) => ({
+    ...x,
+    porcentaje: parseFloat(x.porcentaje.toFixed(2)),
+  }));
+  arr.sort((a, b) => b.porcentaje - a.porcentaje);
 
-    let suma = arr.reduce((s, x) => s + x.porcentaje, 0);
-    const diff = parseFloat((100 - suma).toFixed(2));
-    if (Math.abs(diff) >= 0.01) {
-      arr[arr.length - 1].porcentaje = parseFloat(
-        (arr[arr.length - 1].porcentaje + diff).toFixed(2)
-      );
-    }
-    if (arr[arr.length - 1].porcentaje < 0) {
-      arr[arr.length - 1].porcentaje = 0;
-      const nuevaSuma = arr.reduce((s, x) => s + x.porcentaje, 0);
-      const diff2 = parseFloat((100 - nuevaSuma).toFixed(2));
-      arr[0].porcentaje = parseFloat((arr[0].porcentaje + diff2).toFixed(2));
-    }
+  let suma = arr.reduce((s, x) => s + x.porcentaje, 0);
+  const diff = parseFloat((100 - suma).toFixed(2));
+  if (Math.abs(diff) >= 0.01) {
+    arr[arr.length - 1].porcentaje = parseFloat(
+      (arr[arr.length - 1].porcentaje + diff).toFixed(2)
+    );
+  }
+  if (arr[arr.length - 1].porcentaje < 0) {
+    arr[arr.length - 1].porcentaje = 0;
+    const nuevaSuma = arr.reduce((s, x) => s + x.porcentaje, 0);
+    const diff2 = parseFloat((100 - nuevaSuma).toFixed(2));
+    arr[0].porcentaje = parseFloat((arr[0].porcentaje + diff2).toFixed(2));
+  }
 
-    arr.sort((a, b) => b.porcentaje - a.porcentaje);
-    return arr;
-  };
+  arr.sort((a, b) => b.porcentaje - a.porcentaje);
+  return arr;
+};
   /* ============================================================================
      CARGAS
      ============================================================================ */
@@ -350,115 +350,115 @@ export default function GlobalSupervisorMenu({ usuario }) {
   };
 
   // Detalle de agente (solo para "Seguimiento Desabasto Hoy" y "Día Anterior")
-  const cargarDetalleAgente = async (agente) => {
-    setLoading(true);
-    try {
-      // Determinar fecha según vista
-      let fecha = isoNDiasAtras(0); // hoy
-      if (vista === "anterior") fecha = isoNDiasAtras(1); // ayer
+const cargarDetalleAgente = async (agente) => {
+  setLoading(true);
+  try {
+    // Determinar fecha según vista
+    let fecha = isoNDiasAtras(0); // hoy
+    if (vista === "anterior") fecha = isoNDiasAtras(1); // ayer
 
-      const inicio = `${fecha}T00:00:00`;
-      const fin = `${fecha}T23:59:59`;
+    const inicio = `${fecha}T00:00:00`;
+    const fin = `${fecha}T23:59:59`;
 
-      // === Datos de desabasto (según día) ===
-      const { data: registrosDia, error: errReg } = await supabase
-        .from("vw_desabasto_unicos")
-        .select(
-          "mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
-        )
-        .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
-        .in("saldo_menor_al_promedio_diario", [
-          "Menor al 25%",
-          "Menor al 50%",
-          "Menor al 75%",
-        ])
-        .gte("fecha_carga", inicio)
-        .lte("fecha_carga", fin);
+    // === Datos de desabasto (según día) ===
+    const { data: registrosDia, error: errReg } = await supabase
+      .from("vw_desabasto_unicos")
+      .select(
+        "mdn_usuario, pdv, saldo, promedio_semanal, fecha_ultima_compra, saldo_menor_al_promedio_diario, fecha_carga, jerarquias_n3_ruta"
+      )
+      .ilike("jerarquias_n3_ruta", `%${agente.ruta_excel}%`)
+      .in("saldo_menor_al_promedio_diario", [
+        "Menor al 25%",
+        "Menor al 50%",
+        "Menor al 75%",
+      ])
+      .gte("fecha_carga", inicio)
+      .lte("fecha_carga", fin);
 
-      if (errReg) throw errReg;
+    if (errReg) throw errReg;
 
-      // === Atenciones del mismo día ===
-      const { data: atencionesDia, error: errAt } = await supabase
-        .from("atenciones_agentes")
-        .select(
-          "id, mdn_usuario, pdv, hora, created_at, resultado, motivo_no_efectivo, fecha"
-        )
-        .eq("agente", agente.nombre)
-        .eq("fecha", fecha);
+    // === Atenciones del mismo día ===
+    const { data: atencionesDia, error: errAt } = await supabase
+      .from("atenciones_agentes")
+      .select(
+        "id, mdn_usuario, pdv, hora, created_at, resultado, motivo_no_efectivo, fecha"
+      )
+      .eq("agente", agente.nombre)
+      .eq("fecha", fecha);
 
-      if (errAt) throw errAt;
+    if (errAt) throw errAt;
 
-      // === Agrupar y calcular ===
-      const atendidosIds = new Set(atencionesDia.map((a) => String(a.mdn_usuario)));
+    // === Agrupar y calcular ===
+    const atendidosIds = new Set(atencionesDia.map((a) => String(a.mdn_usuario)));
 
-      const pendientes = (registrosDia || [])
-        .filter((r) => !atendidosIds.has(String(r.mdn_usuario)))
-        .map((r) => {
-          const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
-          let porcentaje = 100;
-          if (t.includes("25")) porcentaje = 25;
-          else if (t.includes("50")) porcentaje = 50;
-          else if (t.includes("75")) porcentaje = 75;
-          return { ...r, porcentaje, mdn_usuario: String(r.mdn_usuario) };
-        })
-        .sort((a, b) => a.porcentaje - b.porcentaje);
+    const pendientes = (registrosDia || [])
+      .filter((r) => !atendidosIds.has(String(r.mdn_usuario)))
+      .map((r) => {
+        const t = (r.saldo_menor_al_promedio_diario || "").toLowerCase();
+        let porcentaje = 100;
+        if (t.includes("25")) porcentaje = 25;
+        else if (t.includes("50")) porcentaje = 50;
+        else if (t.includes("75")) porcentaje = 75;
+        return { ...r, porcentaje, mdn_usuario: String(r.mdn_usuario) };
+      })
+      .sort((a, b) => a.porcentaje - b.porcentaje);
 
-      const totalDesabasto = registrosDia?.length || 0;
-      const totalAtendidos = atencionesDia?.length || 0;
-      const efectivos = (atencionesDia || []).filter(
-        (a) => a.resultado === "efectivo"
-      ).length;
-      const noEfectivos = (atencionesDia || []).filter(
-        (a) => a.resultado === "no efectivo"
-      ).length;
+    const totalDesabasto = registrosDia?.length || 0;
+    const totalAtendidos = atencionesDia?.length || 0;
+    const efectivos = (atencionesDia || []).filter(
+      (a) => a.resultado === "efectivo"
+    ).length;
+    const noEfectivos = (atencionesDia || []).filter(
+      (a) => a.resultado === "no efectivo"
+    ).length;
 
-      const porcentajeAvance =
-        totalDesabasto > 0
-          ? Math.round((totalAtendidos / totalDesabasto) * 100)
-          : 0;
-      const porcentajeEfectividad =
-        totalAtendidos > 0
-          ? Math.round((efectivos / totalAtendidos) * 100)
-          : 0;
-      const porcentajeNoEfectivos =
-        totalAtendidos > 0
-          ? Math.round((noEfectivos / totalAtendidos) * 100)
-          : 0;
+    const porcentajeAvance =
+      totalDesabasto > 0
+        ? Math.round((totalAtendidos / totalDesabasto) * 100)
+        : 0;
+    const porcentajeEfectividad =
+      totalAtendidos > 0
+        ? Math.round((efectivos / totalAtendidos) * 100)
+        : 0;
+    const porcentajeNoEfectivos =
+      totalAtendidos > 0
+        ? Math.round((noEfectivos / totalAtendidos) * 100)
+        : 0;
 
-      let colorRuta = "bg-red-600";
-      if (porcentajeAvance >= 80 && porcentajeAvance < 100)
-        colorRuta = "bg-yellow-400";
-      else if (porcentajeAvance === 100)
-        colorRuta = "bg-green-600";
-      else if (porcentajeAvance >= 50)
-        colorRuta = "bg-orange-500";
+    let colorRuta = "bg-red-600";
+    if (porcentajeAvance >= 80 && porcentajeAvance < 100)
+      colorRuta = "bg-yellow-400";
+    else if (porcentajeAvance === 100)
+      colorRuta = "bg-green-600";
+    else if (porcentajeAvance >= 50)
+      colorRuta = "bg-orange-500";
 
-      // === Guardar resultado ===
-      setDetallesAgente({
-        pendientes,
-        atenciones: atencionesDia,
-        totalDesabasto,
-        totalAtendidos,
-        efectivos,
-        noEfectivos,
-        porcentajeAvance,
-        porcentajeEfectividad,
-        porcentajeNoEfectivos,
-        colorRuta,
-        semaforo: obtenerSemaforo(porcentajeAvance),
-        inicio7d: fecha,
-        fin7d: fecha,
-      });
+    // === Guardar resultado ===
+    setDetallesAgente({
+      pendientes,
+      atenciones: atencionesDia,
+      totalDesabasto,
+      totalAtendidos,
+      efectivos,
+      noEfectivos,
+      porcentajeAvance,
+      porcentajeEfectividad,
+      porcentajeNoEfectivos,
+      colorRuta,
+      semaforo: obtenerSemaforo(porcentajeAvance),
+      inicio7d: fecha,
+      fin7d: fecha,
+    });
 
-      setAgenteSeleccionado(agente);
-      setVista("agente");
-    } catch (err) {
-      console.error("Error en cargarDetalleAgente:", err.message);
-      setDetallesAgente(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setAgenteSeleccionado(agente);
+    setVista("agente");
+  } catch (err) {
+    console.error("Error en cargarDetalleAgente:", err.message);
+    setDetallesAgente(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Histórico global (por región) 7 días
   const cargarResumenHistorico = useCallback(async () => {
@@ -1125,168 +1125,168 @@ export default function GlobalSupervisorMenu({ usuario }) {
     const porcentajeNoEfectivos =
       totalAtendidos > 0 ? Math.round((noEfectivos / totalAtendidos) * 100) : 0;
 
-    // Agrupar motivos
-    const motivosMap = {};
-    (atenciones || []).forEach((a) => {
-      if (a.resultado === "no efectivo" && a.motivo_no_efectivo) {
-        const m = a.motivo_no_efectivo.trim();
-        motivosMap[m] = (motivosMap[m] || 0) + 1;
-      }
-    });
-    const totalMotivos = Object.values(motivosMap).reduce((s, x) => s + x, 0);
-    const motivosPorcentaje = Object.entries(motivosMap).map(([m, v]) => ({
-      motivo: m,
-      porcentaje: totalMotivos ? ((v / totalMotivos) * 100).toFixed(2) : "0.00",
-      cantidad: v,
-    }));
+  // Agrupar motivos
+  const motivosMap = {};
+  (atenciones || []).forEach((a) => {
+    if (a.resultado === "no efectivo" && a.motivo_no_efectivo) {
+      const m = a.motivo_no_efectivo.trim();
+      motivosMap[m] = (motivosMap[m] || 0) + 1;
+    }
+  });
+  const totalMotivos = Object.values(motivosMap).reduce((s, x) => s + x, 0);
+  const motivosPorcentaje = Object.entries(motivosMap).map(([m, v]) => ({
+    motivo: m,
+    porcentaje: totalMotivos ? ((v / totalMotivos) * 100).toFixed(2) : "0.00",
+    cantidad: v,
+  }));
 
-    const formatHora = (a) => {
-      if (a.hora) return a.hora;
-      try {
-        return new Date(a.created_at).toLocaleTimeString("es-CR", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: TZ,
-        });
-      } catch {
-        return "";
-      }
-    };
+  const formatHora = (a) => {
+    if (a.hora) return a.hora;
+    try {
+      return new Date(a.created_at).toLocaleTimeString("es-CR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: TZ,
+      });
+    } catch {
+      return "";
+    }
+  };
 
-    return (
-      <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
-        <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
-          <div className="text-center mb-3">
-            <h2 className="text-lg font-semibold text-gray-800">
-              📋 {regionSeleccionada.toUpperCase()} — {agenteSeleccionado.nombre}
-            </h2>
-            <p className="text-xs text-gray-500">
-              📆 Datos desde {formatFechaLargoCR(inicio7d)} hasta {formatFechaLargoCR(fin7d)}
-            </p>
+  return (
+    <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
+      <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
+        <div className="text-center mb-3">
+          <h2 className="text-lg font-semibold text-gray-800">
+            📋 {regionSeleccionada.toUpperCase()} — {agenteSeleccionado.nombre}
+          </h2>
+          <p className="text-xs text-gray-500">
+            📆 Datos desde {formatFechaLargoCR(inicio7d)} hasta {formatFechaLargoCR(fin7d)}
+          </p>
+        </div>
+        <div className="flex justify-center gap-3 mb-4">
+          <button
+            onClick={() => {
+              setDetallesAgente(null);
+              setVista("region");
+            }}
+            className="text-sm bg-gray-500 text-white py-1 px-4 rounded-lg hover:bg-gray-600"
+          >
+            ⬅ Agentes
+          </button>
+          <button
+            onClick={() => cargarDetalleAgente(agenteSeleccionado)}
+            className="text-sm bg-blue-600 text-white py-1 px-4 rounded-lg hover:bg-blue-700"
+          >
+            🔄 Actualizar
+          </button>
+        </div>
+
+        <div className="text-center mb-4">
+          <p className="text-sm text-gray-700">
+            Desabasto: {totalDesabasto} | Atendidos: {totalAtendidos}
+          </p>
+          <p className="text-xs text-gray-600">
+            🟢 Efectivos {efectivos} ({porcentajeEfectividad}%) — 🔴 No efectivos {noEfectivos} (
+            {porcentajeNoEfectivos}%) — Avance total {porcentajeAvance}%
+          </p>
+        </div>
+
+        {/* PDV pendientes */}
+        {pendientes.length === 0 ? (
+          <p className="text-center text-gray-600 mt-2">Todos los PDV fueron atendidos ✅</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {pendientes.map((pdv, i) => (
+              <div key={i} className="rounded-xl shadow-md p-4 border border-gray-200 bg-white">
+                <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
+                <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
+                <p className="text-sm text-gray-700">Saldo: ₡{formatNumber(pdv.saldo)}</p>
+                <p className="text-sm text-gray-600">
+                  Promedio semanal: {formatNumber(pdv.promedio_semanal)}
+                </p>
+                <p
+                  className={`text-xs font-semibold mt-1 ${
+                    pdv.porcentaje === 25
+                      ? "text-red-600"
+                      : pdv.porcentaje === 50
+                      ? "text-orange-500"
+                      : "text-yellow-500"
+                  }`}
+                >
+                  Desabasto: {pdv.porcentaje}%
+                </p>
+              </div>
+            ))}
           </div>
-          <div className="flex justify-center gap-3 mb-4">
-            <button
-              onClick={() => {
-                setDetallesAgente(null);
-                setVista("region");
-              }}
-              className="text-sm bg-gray-500 text-white py-1 px-4 rounded-lg hover:bg-gray-600"
-            >
-              ⬅ Agentes
-            </button>
-            <button
-              onClick={() => cargarDetalleAgente(agenteSeleccionado)}
-              className="text-sm bg-blue-600 text-white py-1 px-4 rounded-lg hover:bg-blue-700"
-            >
-              🔄 Actualizar
-            </button>
-          </div>
+        )}
 
-          <div className="text-center mb-4">
-            <p className="text-sm text-gray-700">
-              Desabasto: {totalDesabasto} | Atendidos: {totalAtendidos}
-            </p>
-            <p className="text-xs text-gray-600">
-              🟢 Efectivos {efectivos} ({porcentajeEfectividad}%) — 🔴 No efectivos {noEfectivos} (
-              {porcentajeNoEfectivos}%) — Avance total {porcentajeAvance}%
-            </p>
-          </div>
-
-          {/* PDV pendientes */}
-          {pendientes.length === 0 ? (
-            <p className="text-center text-gray-600 mt-2">Todos los PDV fueron atendidos ✅</p>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {pendientes.map((pdv, i) => (
-                <div key={i} className="rounded-xl shadow-md p-4 border border-gray-200 bg-white">
-                  <h3 className="text-base font-bold text-gray-800">{pdv.pdv}</h3>
-                  <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
-                  <p className="text-sm text-gray-700">Saldo: ₡{formatNumber(pdv.saldo)}</p>
-                  <p className="text-sm text-gray-600">
-                    Promedio semanal: {formatNumber(pdv.promedio_semanal)}
-                  </p>
-                  <p
-                    className={`text-xs font-semibold mt-1 ${
-                      pdv.porcentaje === 25
-                        ? "text-red-600"
-                        : pdv.porcentaje === 50
-                        ? "text-orange-500"
-                        : "text-yellow-500"
-                    }`}
-                  >
-                    Desabasto: {pdv.porcentaje}%
-                  </p>
+        {/* PDV atendidos */}
+        {atenciones.length > 0 && (
+          <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
+            <h3 className="text-md font-semibold text-gray-800 text-center mb-2">
+              PDV Atendidos ({atenciones.length})
+            </h3>
+            <div className="divide-y divide-gray-200">
+              {atenciones.map((a) => (
+                <div
+                  key={a.id}
+                  className="py-2 text-sm text-gray-700 flex justify-between items-center"
+                >
+                  <div>
+                    <p className="font-semibold flex items-center gap-2">
+                      {a.pdv}
+                      {a.resultado === "efectivo" && (
+                        <span className="w-3 h-3 bg-green-500 rounded-full" />
+                      )}
+                      {a.resultado === "no efectivo" && (
+                        <span className="w-3 h-3 bg-red-500 rounded-full" />
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-500">MDN: {a.mdn_usuario}</p>
+                    {a.resultado === "no efectivo" && a.motivo_no_efectivo && (
+                      <p className="text-xs text-gray-600 italic">
+                        Motivo: {a.motivo_no_efectivo}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-xs text-gray-600">{formatHora(a)}</span>
                 </div>
               ))}
             </div>
-          )}
 
-          {/* PDV atendidos */}
-          {atenciones.length > 0 && (
-            <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
-              <h3 className="text-md font-semibold text-gray-800 text-center mb-2">
-                PDV Atendidos ({atenciones.length})
-              </h3>
-              <div className="divide-y divide-gray-200">
-                {atenciones.map((a) => (
-                  <div
-                    key={a.id}
-                    className="py-2 text-sm text-gray-700 flex justify-between items-center"
-                  >
-                    <div>
-                      <p className="font-semibold flex items-center gap-2">
-                        {a.pdv}
-                        {a.resultado === "efectivo" && (
-                          <span className="w-3 h-3 bg-green-500 rounded-full" />
-                        )}
-                        {a.resultado === "no efectivo" && (
-                          <span className="w-3 h-3 bg-red-500 rounded-full" />
-                        )}
-                      </p>
-                      <p className="text-xs text-gray-500">MDN: {a.mdn_usuario}</p>
-                      {a.resultado === "no efectivo" && a.motivo_no_efectivo && (
-                        <p className="text-xs text-gray-600 italic">
-                          Motivo: {a.motivo_no_efectivo}
-                        </p>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-600">{formatHora(a)}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Totales finales */}
-              <div className="border-t border-gray-300 mt-3 pt-2 text-center text-sm text-gray-700">
-                <p>
-                  🟢 Efectivos: {efectivos} ({porcentajeEfectividad}%) — 🔴 No efectivos: {noEfectivos} (
-                  {porcentajeNoEfectivos}%) — Avance: {porcentajeAvance}%
-                </p>
-              </div>
+            {/* Totales finales */}
+            <div className="border-t border-gray-300 mt-3 pt-2 text-center text-sm text-gray-700">
+              <p>
+                🟢 Efectivos: {efectivos} ({porcentajeEfectividad}%) — 🔴 No efectivos: {noEfectivos} (
+                {porcentajeNoEfectivos}%) — Avance: {porcentajeAvance}%
+              </p>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Motivos no compra */}
-          {motivosPorcentaje.length > 0 && (
-            <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6">
-              <h4 className="text-md font-semibold text-gray-800 mb-2 text-center">
-                🧾 Razones No Compra (Hoy)
-              </h4>
-              <div className="flex flex-wrap justify-center gap-2">
-                {motivosPorcentaje.map((m, i) => (
-                  <span
-                    key={i}
-                    className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium"
-                  >
-                    {m.motivo}: {m.cantidad} ({m.porcentaje}%)
-                  </span>
-                ))}
-              </div>
+        {/* Motivos no compra */}
+        {motivosPorcentaje.length > 0 && (
+          <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6">
+            <h4 className="text-md font-semibold text-gray-800 mb-2 text-center">
+              🧾 Razones No Compra (Hoy)
+            </h4>
+            <div className="flex flex-wrap justify-center gap-2">
+              {motivosPorcentaje.map((m, i) => (
+                <span
+                  key={i}
+                  className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium"
+                >
+                  {m.motivo}: {m.cantidad} ({m.porcentaje}%)
+                </span>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // Vista: histórico global por región (últimos 7 días) con scroll horizontal
   if (vista === "historico") {
@@ -1571,31 +1571,8 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // NUEVO: vista resumenMotivos (por región, 7 días) con tabla + scroll + Totales país y totales por región
+  // NUEVO: vista resumenMotivos (por región, 7 días) con tabla + scroll
   if (vista === "resumenMotivos") {
-    // Totales país
-    const totalEfectivosPais = resumenMotivos.reduce((s, r) => s + (r.efectivos || 0), 0);
-    const totalNoEfectivosPais = resumenMotivos.reduce((s, r) => s + (r.noefectivos || 0), 0);
-    const totalAtendidosPais = totalEfectivosPais + totalNoEfectivosPais;
-    const pctEfectivosPais = totalAtendidosPais > 0 ? Math.round((totalEfectivosPais / totalAtendidosPais) * 100) : 0;
-    const pctNoEfectivosPais = 100 - pctEfectivosPais;
-
-    // Motivos país por suma de counts
-    const motivosPaisCounts = {};
-    resumenMotivos.forEach((r) => {
-      (r.motitosPorcentaje || r.motivosPorcentaje || []).forEach((m) => {
-        motivosPaisCounts[m.motivo] = (motivosPaisCounts[m.motivo] || 0) + (m.count || 0);
-      });
-    });
-    const totalMotivosPais = Object.values(motivosPaisCounts).reduce((s, v) => s + v, 0);
-    const motivosPaisArray = Object.entries(motivosPaisCounts)
-      .map(([motivo, count]) => ({
-        motivo,
-        count,
-        porcentaje: totalMotivosPais ? ((count / totalMotivosPais) * 100).toFixed(2) : "0.00",
-      }))
-      .sort((a, b) => b.count - a.count);
-
     return (
       <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center p-4 sm:py-10 overflow-hidden">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-6xl animate-fadeIn">
@@ -1616,26 +1593,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 ⬅ Menú
               </button>
             </div>
-          </div>
-
-          {/* === Tarjeta Totales País === */}
-          <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-4 mb-6">
-            <h3 className="text-md font-semibold text-gray-800 mb-1 text-center">🇨🇷 Total País</h3>
-            <p className="text-sm text-gray-700 text-center">
-              Atendidos {totalAtendidosPais.toLocaleString()} — 🟢 Efectivos {totalEfectivosPais.toLocaleString()} ({pctEfectivosPais}%) — 🔴 No efectivos {totalNoEfectivosPais.toLocaleString()} ({pctNoEfectivosPais}%)
-            </p>
-            {motivosPaisArray.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-2 mt-3">
-                {motivosPaisArray.map((m, i) => (
-                  <span
-                    key={i}
-                    className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium shadow-sm"
-                  >
-                    {m.motivo}: {m.count.toLocaleString()} ({m.porcentaje}%)
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
           {resumenMotivos.length === 0 ? (
@@ -1684,15 +1641,14 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 </table>
               </div>
 
-              {/* === Bloques por región con TOTALES DE LA REGIÓN + motivos === */}
               {resumenMotivos.map(
                 (r, idx) =>
-                  (r.motivosPorcentaje || []).length > 0 && (
+                  r.motivosPorcentaje.length > 0 && (
                     <div
                       key={idx}
                       className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-6xl mx-auto mt-6 animate-fadeIn"
                     >
-                      <div className="text-center mb-2">
+                      <div className="text-center mb-4">
                         <h4 className="text-lg font-semibold text-gray-800">
                           🧾 Razones No Compra — {r.region}
                         </h4>
@@ -1703,20 +1659,15 @@ export default function GlobalSupervisorMenu({ usuario }) {
                         )}
                       </div>
 
-                      {/* Totales de la región */}
-                      <p className="text-sm text-gray-700 text-center mb-3">
-                        Atendidos {r.atendidos} — 🟢 Efectivos {r.efectivos} ({r.porcentajeEfectivos}%) — 🔴 No efectivos {r.noefectivos} ({r.porcentajeNoEfectivos}%)
-                      </p>
-
                       <div className="flex flex-wrap justify-center gap-2">
                         {r.motivosPorcentaje.map((m, i) => (
-                          <span
-                            key={i}
-                            className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium"
-                          >
-                            {m.motivo}: {m.count ?? 0} menciones ({m.porcentaje}%)
-                          </span>
-                        ))}
+                        <span
+                          key={i}
+                          className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium"
+                        >
+                          {m.motivo}: {m.count ?? 0} menciones ({m.porcentaje}%)
+                        </span>
+                      ))}
                       </div>
                     </div>
                   )
@@ -1790,7 +1741,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 {a.motivosPorcentaje.length > 0 && (
                   <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4">
                     <h4 className="text-md font-semibold text-gray-800 mb-2 text-center">
-                      🧾 Resumen de Motivos de No Compra
+                      🧾 Razones esumen de Motivos de No Compra
                     </h4>
                     <div className="flex flex-wrap justify-center gap-2">
                       {a.motivosPorcentaje.map((m, i) => (
@@ -1798,7 +1749,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                           key={i}
                           className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium"
                         >
-                          {m.motivo}: {m.count ?? 0} ({m.porcentaje}%)
+                          {m.motivo}: {m.count ?? 0} menciones ({m.porcentaje}%)
                         </span>
                       ))}
                     </div>

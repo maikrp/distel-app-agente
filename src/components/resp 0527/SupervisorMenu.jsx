@@ -59,7 +59,7 @@ export default function SupervisorMenu({ usuario }) {
 
   // ==== Semáforo ====
   const obtenerSemaforo = (p) => {
-    if (p >= 100) return "🟢";
+    if (p === 100) return "🟢";
     if (p >= 80) return "🟡";
     if (p >= 50) return "🟠";
     return "🔴";
