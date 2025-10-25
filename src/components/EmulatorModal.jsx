@@ -83,7 +83,7 @@ export default function EmulatorModal({
 
         {/* Barra inferior */}
         <div className="h-10 bg-neutral-900 border-t border-neutral-800 flex items-center justify-center text-neutral-500 text-xs">
-          © 2025 Distel — Sistema de Control de Desabasto
+          © 2025 Distel — Sistema Manejo de Desabasto
         </div>
       </div>
     </div>

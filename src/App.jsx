@@ -80,8 +80,8 @@ export default function App() {
             <img src="/logo_distel.png" alt="Logo Distel" className="w-24 h-24 object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Bienvenido</h1>
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Control de Clientes en Desabasto</h2>
-          <p className="text-gray-600 mb-6">Ingrese su número y clave</p>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Sistema de Administración de Clientes en Desabasto</h2>
+          <p className="text-gray-600 mb-6">Ingrese su usuario y contraseña</p>
           <input type="tel" inputMode="numeric" pattern="[0-9]*" value={telefono}
                  onChange={(e) => setTelefono(e.target.value.replace(/\D/g, ""))}
                  onKeyDown={handleKeyPressLogin} placeholder="Ejemplo: 60123456"
@@ -94,7 +94,7 @@ export default function App() {
                   className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition-all disabled:opacity-50">
             {loading ? "Verificando..." : "Ingresar"}
           </button>
-          <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Sistema de Control de Desabasto</p>
+          <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Sistema Manejo de Desabasto</p>
         </div>
       </div>
     </div>
@@ -144,7 +144,7 @@ export default function App() {
 
       <footer style={{ textAlign:"center", padding:"10px", fontSize:"14px", color:"#555",
                        backgroundColor:"#f9f9f9", borderTop:"1px solid #ddd", marginTop:"auto" }}>
-        © 2025 Distel — Sistema de Control de Desabasto
+        © 2025 Distel — Sistema Manejo de Desabasto
       </footer>
     </div>
   ) : null;
