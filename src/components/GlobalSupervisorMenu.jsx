@@ -354,8 +354,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     setLoading(true);
     try {
       // Determinar fecha según vista
-      let fecha = isoNDiasAtras(0); // hoy
-      if (vista === "anterior") fecha = isoNDiasAtras(1); // ayer
+      const fecha = isoNDiasAtras(offsetDiasCtx);
 
       const inicio = `${fecha}T00:00:00`;
       const fin = `${fecha}T23:59:59`;
@@ -1269,7 +1268,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
           {motivosPorcentaje.length > 0 && (
             <div className="bg-gray-50 rounded-xl border border-gray-200 shadow p-4 mt-6">
               <h4 className="text-md font-semibold text-gray-800 mb-2 text-center">
-                🧾 Razones No Compra (Hoy)
+                🧾 Razones No Compra
               </h4>
               <div className="flex flex-wrap justify-center gap-2">
                 {motivosPorcentaje.map((m, i) => (
