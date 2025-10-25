@@ -738,11 +738,39 @@ export default function SupervisorMenu({ usuario }) {
     semaforo = "🔴",
   } = resumenZona;
 
+  // === NUEVO: Si no hay datos cargados hoy, mostrar mensaje ===
+  if (
+    vista === "actual" &&
+    !loading &&
+    (agentes.length === 0 ||
+      !resumenZona ||
+      (!resumenZona.totalZonaDesabasto && !resumenZona.totalZonaAtendidos))
+  ) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-10">
+        <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">
+            Supervisión — {usuario.region}
+          </h2>
+          <p className="text-sm text-gray-600 mb-6">
+            Datos no han sido cargados para el día de hoy.
+          </p>
+          <button
+            onClick={() => setVista("menu")}
+            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-semibold"
+          >
+            ⬅ Volver al Menú
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading)
     return (
       <p className="text-center text-gray-500 mt-6">Cargando información...</p>
     );
-
+ 
   return (
     <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
       <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
