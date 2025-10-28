@@ -202,10 +202,10 @@ const cargarResumenGlobalGenerico = useCallback(
   async (offsetDias = 0, fechaForzada = null) => {
     setLoading(true);
 
-    // Forzar misma fecha para vw_desabasto_unicos y atenciones_agentes (zona Costa Rica UTC−6)
+    // Forzar misma fecha para vw_desabasto_unicos y atenciones_agentes
     const fechaReferencia = fechaForzada ?? isoNDiasAtras(offsetDias);
-    const inicio = new Date(`${fechaReferencia}T00:00:00-06:00`).toISOString();
-    const fin = new Date(`${fechaReferencia}T23:59:59-06:00`).toISOString();
+    const inicio = `${fechaReferencia}T00:00:00`;
+    const fin = `${fechaReferencia}T23:59:59`;
 
     try {
       const { data: agentesDataRaw, error: agentesError } = await supabase
@@ -849,59 +849,46 @@ const cargarResumenGlobalGenerico = useCallback(
     }
   };
 
-  // === ÚLTIMA FECHA LABORABLE — usa Intl.DateTimeFormat en America/Costa_Rica ===
-  // === ÚLTIMA FECHA LABORABLE — CORRECCIÓN FINAL: usa fecha textual sin conversión UTC ===
+  // === NUEVO: última fecha laborable (lunes a sábado, excluyendo hoy) ===
   const obtenerUltimaFechaLaborable = async () => {
     try {
+      // Obtener todas las fechas de atenciones ordenadas descendente
       const { data, error } = await supabase
         .from("atenciones_agentes")
         .select("fecha")
         .order("fecha", { ascending: false });
 
       if (error) throw error;
-      if (!data?.length) return null;
+      if (!data || data.length === 0) return null;
 
-      const TZ = "America/Costa_Rica";
-
-      // Fecha de hoy en Costa Rica
-      const hoyCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+      // Fecha de hoy en Costa Rica (para excluirla)
+      const hoyCR = new Date(
+        new Date().toLocaleString("en-US", { timeZone: TZ })
+      );
       const hoyISO = hoyCR.toISOString().split("T")[0];
 
-      // Convierte sin alterar día (no deja que UTC lo modifique)
-      const obtenerISOenCR = (fechaTexto) => {
-        const soloFecha = fechaTexto.split("T")[0];
-        return soloFecha;
+      const esDomingoCR = (iso) => {
+        const base = `${iso.split("T")[0]}T12:00:00Z`; // mediodía UTC
+        const dCR = new Date(new Date(base).toLocaleString("en-US", { timeZone: TZ }));
+        const day = dCR.getDay(); // 0=domingo, 1=lunes...
+        return day === 0;
       };
 
-      const obtenerDiaSemanaCR = (fechaTexto) => {
-        const fecha = new Date(
-          new Date(`${fechaTexto}T12:00:00`).toLocaleString("en-US", { timeZone: TZ })
-        );
-        return fecha.getDay(); // 0 domingo, 6 sábado
-      };
-
-      const fechas = [];
+      // Buscar la última fecha que:
+      //  - no sea hoy
+      //  - no sea domingo
       for (const r of data) {
-        if (!r.fecha) continue;
-        const iso = obtenerISOenCR(r.fecha);
-        if (iso === hoyISO) continue; // omite hoy
-        const dow = obtenerDiaSemanaCR(iso);
-        if (dow === 0) continue; // omite domingo
-        if (!fechas.includes(iso)) fechas.push({ iso, dow });
+        const iso = r.fecha.split("T")[0];
+        if (iso === hoyISO) continue; // saltar hoy
+        if (!esDomingoCR(iso)) return iso;
       }
 
-      // Buscar el sábado más reciente
-      const sabado = fechas.find((f) => f.dow === 6);
-      if (sabado) return sabado.iso;
-
-      // Si no hay sábado, devolver última laborable
-      return fechas.length ? fechas[0].iso : null;
+      return null;
     } catch (err) {
-      console.error("Error al obtener última fecha laborable (corrección final):", err.message);
+      console.error("Error al obtener última fecha laborable:", err.message);
       return null;
     }
   };
-
 
   /* ===================== Cargas automáticas por vista ===================== */
   useEffect(() => {

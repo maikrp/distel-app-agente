@@ -139,7 +139,9 @@ export default function App() {
            style={{ WebkitOverflowScrolling: "touch" }}>
         {usuario?.acceso === "ruta" && <AgentDashboard usuario={usuario} />}
         {usuario?.acceso === "regional" && <SupervisorMenu usuario={usuario} />}
-        {usuario?.acceso === "global" && <GlobalSupervisorMenu usuario={usuario} />}
+        {(usuario?.acceso === "global" || usuario?.acceso === "superadmin") && (
+          <GlobalSupervisorMenu usuario={usuario} />
+        )}
       </div>
 
       <footer style={{ textAlign:"center", padding:"10px", fontSize:"14px", color:"#555",

@@ -4,25 +4,34 @@
    - Menú y vistas de Supervisión Global
    - Vistas: menu | actual | anterior | historico | region | agente
              | historicoRegionAgentes | resumenMotivos | resumenMotivosRegion
+             | adminTools   ← NUEVA
    - Incluye resumen de motivos de no compra (7 días) por región y por agente
    ============================================================================ */
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
+import AdminToolsPanel from "./AdminToolsPanel";
 
 /* ============================================================================
    Componente principal
    ============================================================================ */
 export default function GlobalSupervisorMenu({ usuario }) {
+
   /* --------------------------------------------------------------------------
      Vistas y contexto
      -------------------------------------------------------------------------- */
   // Vistas: menu | actual | anterior | historico | region | agente | historicoRegionAgentes
-  //         resumenMotivos | resumenMotivosRegion
+  //         resumenMotivos | resumenMotivosRegion | adminTools
   const [vista, setVista] = useState("menu");
 
   // Contexto de fecha para vistas "actual" y "anterior": 0 = hoy, 1 = ayer (CR).
   const [offsetDiasCtx, setOffsetDiasCtx] = useState(0);
+
+  // NUEVO: fecha fijada cuando vista = "anterior" (omitiendo domingos)
+  const [fechaFijadaCtx, setFechaFijadaCtx] = useState(null);
+
+  // Métrica Liberty (último control_registro)
+  const [metricaLiberty, setMetricaLiberty] = useState(null);
 
   /* --------------------------------------------------------------------------
      Estados globales
@@ -46,6 +55,23 @@ export default function GlobalSupervisorMenu({ usuario }) {
   // Resumen de motivos (7 días)
   const [resumenMotivos, setResumenMotivos] = useState([]); // por región
   const [resumenMotivosRegion, setResumenMotivosRegion] = useState([]); // por agente (de una región)
+
+  /* --------------------------------------------------------------------------
+     Cálculo de superadmin (no rompe flujos existentes)
+     -------------------------------------------------------------------------- */
+  const isSuperAdmin = (() => {
+    const a = String(usuario?.acceso || "").toLowerCase();
+    const r = String(usuario?.rol || "").toLowerCase();
+    const t = String(usuario?.tipo || "").toLowerCase();
+    const sup = String(usuario?.supervisor || "").toLowerCase();
+    const flag = Boolean(usuario?.superadmin === true);
+    return (
+      a === "superadmin" ||
+      r === "superadmin" ||
+      flag ||
+      (t === "supervisor" && sup === "superadmin")
+    );
+  })();
 
   /* --------------------------------------------------------------------------
      Zona horaria y helpers de fecha
@@ -160,10 +186,16 @@ export default function GlobalSupervisorMenu({ usuario }) {
      CARGAS
      ============================================================================ */
 
-  // Resumen global por fecha (hoy o ayer) con efectividad
-  const cargarResumenGlobalGenerico = useCallback(async (offsetDias = 0) => {
+  // Resumen global por fecha (hoy o fecha forzada) con efectividad
+const cargarResumenGlobalGenerico = useCallback(
+  async (offsetDias = 0, fechaForzada = null) => {
     setLoading(true);
-    const fecha = isoNDiasAtras(offsetDias);
+
+    // Forzar misma fecha para vw_desabasto_unicos y atenciones_agentes
+    const fechaReferencia = fechaForzada ?? isoNDiasAtras(offsetDias);
+    const inicio = `${fechaReferencia}T00:00:00`;
+    const fin = `${fechaReferencia}T23:59:59`;
+
     try {
       const { data: agentesDataRaw, error: agentesError } = await supabase
         .from("agentes")
@@ -195,6 +227,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
           await Promise.all(
             agentesRegionLocal.map(async (agente) => {
+              // Desabasto del día (mismo rango horario)
               const { data: registros } = await supabase
                 .from("vw_desabasto_unicos")
                 .select(
@@ -206,14 +239,16 @@ export default function GlobalSupervisorMenu({ usuario }) {
                   "Menor al 50%",
                   "Menor al 75%",
                 ])
-                .gte("fecha_carga", `${fecha}T00:00:00`)
-                .lte("fecha_carga", `${fecha}T23:59:59`);
+                .gte("fecha_carga", inicio)
+                .lte("fecha_carga", fin);
 
+              // Atenciones del mismo día
               const { data: atenciones } = await supabase
                 .from("atenciones_agentes")
                 .select("mdn_usuario, resultado")
                 .eq("agente", agente.nombre)
-                .eq("fecha", fecha);
+                .gte("fecha", inicio)
+                .lte("fecha", fin);
 
               const totalDesabasto = registros?.length || 0;
               const totalAtendidos = atenciones?.length || 0;
@@ -280,7 +315,10 @@ export default function GlobalSupervisorMenu({ usuario }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  },
+  []
+);
+
 
   // Agentes de una región por fecha con efectividad
   const cargarRegion = async (regionNorm, offsetDias = 0) => {
@@ -289,7 +327,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     setAgenteSeleccionado(null);
     setDetallesAgente(null);
 
-    const fecha = isoNDiasAtras(offsetDias);
+    const fecha = fechaFijadaCtx ?? isoNDiasAtras(offsetDias);
 
     const { data: agentesDataRaw } = await supabase
       .from("agentes")
@@ -350,11 +388,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
     setVista("region");
   };
 
-  // Detalle de agente (hoy o ayer según offsetDiasCtx)
+  // Detalle de agente (hoy o fecha fijada si aplica)
   const cargarDetalleAgente = async (agente) => {
     setLoading(true);
     try {
-      const fecha = isoNDiasAtras(offsetDiasCtx);
+      const fecha = fechaFijadaCtx ?? isoNDiasAtras(offsetDiasCtx);
 
       const inicio = `${fecha}T00:00:00`;
       const fin = `${fecha}T23:59:59`;
@@ -441,7 +479,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
       setLoading(false);
     }
   };
-
   // Histórico global (por región) 7 días
   const cargarResumenHistorico = useCallback(async () => {
     setLoading(true);
@@ -801,18 +838,85 @@ export default function GlobalSupervisorMenu({ usuario }) {
     }
   };
 
+  // === NUEVO: última fecha laborable (lunes a sábado, excluyendo hoy) ===
+  const obtenerUltimaFechaLaborable = async () => {
+    try {
+      // Obtener todas las fechas de atenciones ordenadas descendente
+      const { data, error } = await supabase
+        .from("atenciones_agentes")
+        .select("fecha")
+        .order("fecha", { ascending: false });
+
+      if (error) throw error;
+      if (!data || data.length === 0) return null;
+
+      // Fecha de hoy en Costa Rica (para excluirla)
+      const hoyCR = new Date(
+        new Date().toLocaleString("en-US", { timeZone: TZ })
+      );
+      const hoyISO = hoyCR.toISOString().split("T")[0];
+
+      const esDomingoCR = (iso) => {
+        const base = `${iso.split("T")[0]}T12:00:00Z`; // mediodía UTC
+        const dCR = new Date(new Date(base).toLocaleString("en-US", { timeZone: TZ }));
+        const day = dCR.getDay(); // 0=domingo, 1=lunes...
+        return day === 0;
+      };
+
+      // Buscar la última fecha que:
+      //  - no sea hoy
+      //  - no sea domingo
+      for (const r of data) {
+        const iso = r.fecha.split("T")[0];
+        if (iso === hoyISO) continue; // saltar hoy
+        if (!esDomingoCR(iso)) return iso;
+      }
+
+      return null;
+    } catch (err) {
+      console.error("Error al obtener última fecha laborable:", err.message);
+      return null;
+    }
+  };
+
   /* ===================== Cargas automáticas por vista ===================== */
   useEffect(() => {
     if (vista === "menu") {
       setLoading(false);
       return;
     }
-    if (vista === "actual") cargarResumenGlobalGenerico(0);
-    if (vista === "anterior") cargarResumenGlobalGenerico(1);
-    if (vista === "historico") cargarResumenHistorico();
-  }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico]);
 
+    if (vista === "actual") {
+      setFechaFijadaCtx(null);
+      cargarResumenGlobalGenerico(0, null);
+      return;
+    }
+
+    if (vista === "anterior") {
+      (async () => {
+        const ultimaFechaLab = await obtenerUltimaFechaLaborable();
+        if (ultimaFechaLab) {
+          setFechaFijadaCtx(ultimaFechaLab);
+          await cargarResumenGlobalGenerico(0, ultimaFechaLab);
+        } else {
+          setFechaFijadaCtx(null);
+          await cargarResumenGlobalGenerico(1, null);
+        }
+      })();
+      return;
+    }
+
+    if (vista === "historico") {
+      cargarResumenHistorico();
+      return;
+    }
+  }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico]);
   /* ============================== RENDERS ============================== */
+
+  // NUEVO: Vista AdminTools (solo superadmin)
+  if (vista === "adminTools") {
+    return <AdminToolsPanel onVolver={() => setVista("menu")} />;
+  }
 
   // Menú principal
   if (vista === "menu") {
@@ -842,7 +946,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                 }}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-lg font-semibold"
               >
-                📅 Revisar Desabasto Día Anterior
+                📅 Revisar Desabasto último día de atención
               </button>
 
               <button
@@ -858,6 +962,17 @@ export default function GlobalSupervisorMenu({ usuario }) {
               >
                 📊 Resumen Razones No Compra (7 días)
               </button>
+
+              {/* === NUEVO: Botón visible solo para súper admin === */}
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setVista("adminTools")}
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white py-3 px-4 rounded-lg font-semibold"
+                  title="Herramientas de administración para superadmin"
+                >
+                  ⚙️ Panel de Administración
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -865,7 +980,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Vista: lista de regiones (hoy o ayer)
+  // Vista: lista de regiones (hoy o día anterior fijado)
   if (vista === "actual" || vista === "anterior") {
     const {
       totalGlobalDesabasto = 0,
@@ -876,18 +991,49 @@ export default function GlobalSupervisorMenu({ usuario }) {
       semaforo = "🔴",
     } = resumenGlobal;
 
+    // Si no hay datos cargados hoy, mostrar mensaje
+    if (
+      vista === "actual" &&
+      !loading &&
+      (regiones.length === 0 ||
+        (totalGlobalDesabasto === 0 &&
+          totalGlobalAtendidos === 0 &&
+          totalGlobalEfectivos === 0))
+    ) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4 py-10">
+          <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              Supervisión Global — Todas las Regiones
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Datos no han sido cargados para el día de hoy.
+            </p>
+            <button
+              onClick={() => setVista("menu")}
+              className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-semibold"
+            >
+              ⬅ Volver al Menú
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
         <div className="bg-white shadow-lg rounded-3xl p-8 text-center max-w-md w-full transform transition-all animate-fadeIn sm:mt-[-150px]">
           <div className="text-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
               {semaforo}{" "}
-              {offsetDiasCtx === 1
-                ? `Desabasto Día Anterior — Todas las Regiones`
-                : `Supervisión Global — Todas las Regiones`}
+              {vista === "anterior"
+                ? `Desabasto Ultimo día atención — Todas las Regiones`
+                : `Supervisor Global — Todas las Regiones`}
             </h2>
             <p className="text-sm text-gray-500">
-              {offsetDiasCtx === 1 ? formatFechaLargoCR(isoNDiasAtras(1)) : formatFechaLargoCR(hoyISO())}
+              {vista === "anterior"
+                ? formatFechaLargoCR(fechaFijadaCtx ?? isoNDiasAtras(1))
+                : formatFechaLargoCR(hoyISO())}
             </p>
           </div>
 
@@ -899,7 +1045,12 @@ export default function GlobalSupervisorMenu({ usuario }) {
               ⬅ Menú
             </button>
             <button
-              onClick={() => cargarResumenGlobalGenerico(offsetDiasCtx)}
+              onClick={() =>
+                cargarResumenGlobalGenerico(
+                  vista === "anterior" ? 1 : 0,
+                  vista === "anterior" ? (fechaFijadaCtx ?? null) : null
+                )
+              }
               className="text-sm bg-blue-600 text-white py-1 px-4 rounded-lg hover:bg-blue-700"
             >
               🔄 Actualizar
@@ -963,7 +1114,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => cargarRegion(r.region, offsetDiasCtx)}
+                      onClick={() => cargarRegion(r.region, vista === "anterior" ? 1 : 0)}
                       className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg w-full"
                     >
                       Ver región
@@ -1006,9 +1157,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
           <div className="text-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
-              {obtenerSemaforo(porcentajeZona)} Supervisión — {regionSeleccionada.toUpperCase()}
+              {obtenerSemaforo(porcentajeZona)} Supervisor — {regionSeleccionada.toUpperCase()}
             </h2>
-            <p className="text-sm text-gray-500">{formatFechaLargoCR(isoNDiasAtras(offsetDiasCtx))}</p>
+            <p className="text-sm text-gray-500">
+              {formatFechaLargoCR(fechaFijadaCtx ?? isoNDiasAtras(offsetDiasCtx))}
+            </p>
           </div>
 
           <div className="flex justify-center gap-3 mb-4">
@@ -1226,18 +1379,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
                       )}
                     </div>
                     <span className="text-xs text-gray-600">
-                      {a.hora ||
-                        (() => {
-                          try {
-                            return new Date(a.created_at).toLocaleTimeString("es-CR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              timeZone: TZ,
-                            });
-                          } catch {
-                            return "";
-                          }
-                        })()}
+                      {a.hora || formatHora(a)}
                     </span>
                   </div>
                 ))}
@@ -1273,6 +1415,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
       </div>
     );
   }
+
   // Vista: histórico global por región (últimos 7 días)
   if (vista === "historico") {
     const grupos = historico.reduce((acc, r) => {
@@ -1417,7 +1560,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
     );
   }
 
-  // Vista: histórico por agentes de una región (7 días) — ranking por efectividad y con no efectivos
+  // Vista: histórico por agentes de una región (7 días)
   if (vista === "historicoRegionAgentes" && regionSeleccionada) {
     const grupos = historicoRegionAgentes.reduce((acc, r) => {
       if (!acc[r.agente]) acc[r.agente] = [];
@@ -1448,7 +1591,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
           totalNoEfectivos,
         };
       })
-      .sort((a, b) => b.avgEfectivos - a.avgEfectivos); // ranking por efectividad
+      .sort((a, b) => b.avgEfectivos - a.avgEfectivos);
 
     return (
       <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center p-4 sm:py-10 overflow-hidden">
