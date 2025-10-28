@@ -849,59 +849,52 @@ const cargarResumenGlobalGenerico = useCallback(
     }
   };
 
-  // === ÚLTIMA FECHA LABORABLE — usa Intl.DateTimeFormat en America/Costa_Rica ===
-  // === ÚLTIMA FECHA LABORABLE — CORRECCIÓN FINAL: usa fecha textual sin conversión UTC ===
+  // === Última fecha laborable real en Costa Rica (corrige UTC) ===
   const obtenerUltimaFechaLaborable = async () => {
+    const pad = (n) => String(n).padStart(2, "0");
     try {
       const { data, error } = await supabase
         .from("atenciones_agentes")
-        .select("fecha")
-        .order("fecha", { ascending: false });
+        .select("created_at")
+        .order("created_at", { ascending: false })
+        .limit(500); // evita traer demasiados registros
 
       if (error) throw error;
       if (!data?.length) return null;
 
-      const TZ = "America/Costa_Rica";
+      const fechasLocales = [];
 
-      // Fecha de hoy en Costa Rica
-      const hoyCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
-      const hoyISO = hoyCR.toISOString().split("T")[0];
-
-      // Convierte sin alterar día (no deja que UTC lo modifique)
-      const obtenerISOenCR = (fechaTexto) => {
-        const soloFecha = fechaTexto.split("T")[0];
-        return soloFecha;
-      };
-
-      const obtenerDiaSemanaCR = (fechaTexto) => {
-        const fecha = new Date(
-          new Date(`${fechaTexto}T12:00:00`).toLocaleString("en-US", { timeZone: TZ })
-        );
-        return fecha.getDay(); // 0 domingo, 6 sábado
-      };
-
-      const fechas = [];
+      // Convertir cada registro a fecha local CR
       for (const r of data) {
-        if (!r.fecha) continue;
-        const iso = obtenerISOenCR(r.fecha);
-        if (iso === hoyISO) continue; // omite hoy
-        const dow = obtenerDiaSemanaCR(iso);
-        if (dow === 0) continue; // omite domingo
-        if (!fechas.includes(iso)) fechas.push({ iso, dow });
+        if (!r.created_at) continue;
+
+        const fechaLocal = new Date(
+          new Date(r.created_at).toLocaleString("en-US", { timeZone: TZ })
+        );
+        const y = fechaLocal.getFullYear();
+        const m = pad(fechaLocal.getMonth() + 1);
+        const d = pad(fechaLocal.getDate());
+        const iso = `${y}-${m}-${d}`;
+
+        // No incluir hoy ni domingos
+        const hoyCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+        const hoyISO = `${hoyCR.getFullYear()}-${pad(hoyCR.getMonth() + 1)}-${pad(hoyCR.getDate())}`;
+        const dow = fechaLocal.getDay();
+        if (iso === hoyISO || dow === 0) continue;
+
+        if (!fechasLocales.find((f) => f.iso === iso)) {
+          fechasLocales.push({ iso, dow, ts: fechaLocal.getTime() });
+        }
       }
 
-      // Buscar el sábado más reciente
-      const sabado = fechas.find((f) => f.dow === 6);
-      if (sabado) return sabado.iso;
-
-      // Si no hay sábado, devolver última laborable
-      return fechas.length ? fechas[0].iso : null;
+      // Ordenar por timestamp descendente y devolver la más reciente
+      fechasLocales.sort((a, b) => b.ts - a.ts);
+      return fechasLocales[0]?.iso ?? null;
     } catch (err) {
-      console.error("Error al obtener última fecha laborable (corrección final):", err.message);
+      console.error("Error obtenerUltimaFechaLaborable:", err.message);
       return null;
     }
   };
-
 
   /* ===================== Cargas automáticas por vista ===================== */
   useEffect(() => {
@@ -935,6 +928,29 @@ const cargarResumenGlobalGenerico = useCallback(
       return;
     }
   }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico]);
+
+
+  // === Actualizar vista automáticamente al pasar medianoche (zona CR) ===
+  useEffect(() => {
+    const TZ = "America/Costa_Rica";
+
+    const calcularMsHastaMedianoche = () => {
+      const ahora = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+      const siguienteDia = new Date(ahora);
+      siguienteDia.setDate(ahora.getDate() + 1);
+      siguienteDia.setHours(0, 1, 0, 0); // 00:01
+      return siguienteDia - ahora;
+    };
+
+    const msHastaCambio = calcularMsHastaMedianoche();
+
+    const timer = setTimeout(() => {
+      window.location.reload(); // recarga la app para recalcular fecha
+    }, msHastaCambio);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   /* ============================== RENDERS ============================== */
 
   // NUEVO: Vista AdminTools (solo superadmin)
