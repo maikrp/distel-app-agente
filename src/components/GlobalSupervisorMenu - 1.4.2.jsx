@@ -901,80 +901,8 @@ const cargarResumenGlobalGenerico = useCallback(
     }
   };
 
- // === MÉTRICA DE DESABASTO LIBERTY — Cálculo dinámico (hoy / último día) con guardado automático ===
-const cargarMetricaLiberty = useCallback(async () => {
-  try {
-    // Determinar la fecha de referencia
-    const fechaReferencia = vista === "anterior" && fechaFijadaCtx
-      ? fechaFijadaCtx
-      : new Date().toLocaleDateString("en-CA", { timeZone: "America/Costa_Rica" });
-
-    // 1️⃣ Total de PDV cargados (en desabasto)
-    const { count: totalCargados, error: errorCargados } = await supabase
-      .from("vw_desabasto_unicos")
-      .select("mdn_usuario", { count: "exact", head: true })
-      .gte("fecha_carga", `${fechaReferencia}T00:00:00`)
-      .lte("fecha_carga", `${fechaReferencia}T23:59:59`);
-    if (errorCargados) throw errorCargados;
-
-    // 2️⃣ Total de PDV atendidos
-    const { count: totalAtendidos, error: errorAtendidos } = await supabase
-      .from("atenciones_agentes")
-      .select("id", { count: "exact", head: true })
-      .eq("fecha", fechaReferencia);
-    if (errorAtendidos) throw errorAtendidos;
-
-    // 3️⃣ Buscar total_excel del día en control_registro
-    const { data: registrosControl, error: errorControl } = await supabase
-      .from("control_registro")
-      .select("id, total_excel, fecha_carga")
-      .order("fecha_carga", { ascending: false });
-    if (errorControl) throw errorControl;
-
-    const fechaRefSimple = fechaReferencia.split("T")[0];
-    const registroDia =
-      registrosControl.find((r) =>
-        (r.fecha_carga || "").startsWith(fechaRefSimple)
-      ) ||
-      registrosControl.find(
-        (r) => (r.fecha_carga || "") < `${fechaRefSimple}T00:00:00`
-      );
-
-    const totalExcel = registroDia?.total_excel || 0;
-    const idRegistro = registroDia?.id;
-
-    // 4️⃣ Cálculo de la métrica
-    const pendientes = Math.max(totalCargados - totalAtendidos, 0);
-    const porcentaje = totalExcel > 0 ? ((pendientes / totalExcel) * 100).toFixed(1) : 0;
-
-    // 5️⃣ Guardar en estado
-    setMetricaLiberty({
-      fechaReferencia,
-      totalExcel,
-      totalCargados,
-      totalAtendidos,
-      totalPendientes: pendientes,
-      porcentaje,
-    });
-
-    // 6️⃣ Guardar automáticamente el cierre diario en control_registro
-    if (idRegistro && vista === "actual") {
-      const { error: updateError } = await supabase
-        .from("control_registro")
-        .update({ metrica_liberty: porcentaje })
-        .eq("id", idRegistro);
-      if (updateError) console.error("Error al guardar metrica_liberty:", updateError.message);
-      else console.log(`✔ Métrica Liberty ${porcentaje}% guardada en registro ID ${idRegistro}`);
-    }
-  } catch (err) {
-    console.error("Error al calcular Métrica Liberty:", err.message);
-    setMetricaLiberty(null);
-  }
-}, [vista, fechaFijadaCtx]);
-
-
   /* ===================== Cargas automáticas por vista ===================== */
-    useEffect(() => {
+  useEffect(() => {
     if (vista === "menu") {
       setLoading(false);
       return;
@@ -983,7 +911,6 @@ const cargarMetricaLiberty = useCallback(async () => {
     if (vista === "actual") {
       setFechaFijadaCtx(null);
       cargarResumenGlobalGenerico(0, null);
-      cargarMetricaLiberty(); // ← AÑADIR ESTA LÍNEA
       return;
     }
 
@@ -997,7 +924,6 @@ const cargarMetricaLiberty = useCallback(async () => {
           setFechaFijadaCtx(null);
           await cargarResumenGlobalGenerico(1, null);
         }
-        cargarMetricaLiberty(); // ← TAMBIÉN AQUÍ
       })();
       return;
     }
@@ -1006,9 +932,9 @@ const cargarMetricaLiberty = useCallback(async () => {
       cargarResumenHistorico();
       return;
     }
-  }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico, cargarMetricaLiberty]);
-
+  }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico]);
   /* ============================== RENDERS ============================== */
+
   // NUEVO: Vista AdminTools (solo superadmin)
   if (vista === "adminTools") {
     return <AdminToolsPanel onVolver={() => setVista("menu")} />;
@@ -1170,32 +1096,9 @@ const cargarMetricaLiberty = useCallback(async () => {
           <p className="text-sm text-center text-gray-700 mb-1">
             Avance Global: {porcentajeGlobal}% — {totalGlobalAtendidos} de {totalGlobalDesabasto} PDV atendidos
           </p>
-          <p className="text-xs text-center text-gray-600 mb-1">
+          <p className="text-xs text-center text-gray-600 mb-6">
             Efectividad Global: {porcentajeGlobalEfectividad}% — Efectivos {totalGlobalEfectivos} de {totalGlobalAtendidos}
           </p>
-          
-          {/* === Métrica de Desabasto Liberty === */}
-          {metricaLiberty && (
-            <>
-              <p
-                className="text-sm font-semibold text-center mt-1 mb-1"
-                style={{ color: "#2563EB" }} // azul
-              >
-                Métrica de Desabasto Liberty:{" "}
-                <span
-                  style={{
-                    color:
-                      parseFloat(metricaLiberty.porcentaje) < 4 ? "#16A34A" : "#DC2626", // verde o rojo
-                    fontWeight: "bold",
-                  }}
-                >
-                  {metricaLiberty.porcentaje}%
-                </span>{" "}
-                — ({metricaLiberty.totalPendientes} de {metricaLiberty.totalExcel})
-              </p>
-              <div className="mb-3" /> {/* espacio inferior */}
-            </>
-          )}
 
           {regiones.length === 0 ? (
             <div className="bg-white p-6 rounded-xl shadow-sm text-center text-gray-600">
@@ -1255,7 +1158,6 @@ const cargarMetricaLiberty = useCallback(async () => {
     );
   }
 
-   
   // Vista: agentes por región
   if (vista === "region" && regionSeleccionada) {
     const totalZonaDesabasto = agentesRegion.reduce((s, a) => s + (a.totalDesabasto || 0), 0);
