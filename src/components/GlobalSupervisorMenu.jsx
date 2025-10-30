@@ -101,20 +101,42 @@ export default function GlobalSupervisorMenu({ usuario }) {
     return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   };
 
-  const formatFechaCortoCR = (iso) =>
-    parseISOasCRDate(iso).toLocaleDateString("es-CR", {
-      timeZone: TZ,
-      day: "2-digit",
-      month: "short",
-    });
+  const formatFechaLargoCR = (iso) => {
+  if (!iso) return "";
+  // usar fecha local pura, no UTC, para evitar desfase de día
+  const fecha = new Date(iso + "T00:00:00");
+  const opciones = {
+    timeZone: "America/Costa_Rica",
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  };
+  const texto = fecha
+    .toLocaleDateString("es-CR", opciones)
+    .replace(/\.$/, "") // quita punto final de abreviación
+    .replace(/\b\w/, (c) => c.toUpperCase()); // mayúscula inicial
+  return texto;
+};
 
-  const formatFechaLargoCR = (iso) =>
-    parseISOasCRDate(iso).toLocaleDateString("es-CR", {
+  // Formato corto: "Jueves 30 de oct 2025"
+  const formatFechaCortoCR = (iso) => {
+    if (!iso) return "";
+    const fecha = parseISOasCRDate(iso);
+    const opciones = {
       timeZone: TZ,
+      weekday: "long",
       day: "2-digit",
       month: "short",
       year: "numeric",
-    });
+    };
+    const texto = fecha
+      .toLocaleDateString("es-CR", opciones)
+      .replace(/\.$/, "")
+      .replace(".", "")
+      .replace(" de ", " de ");
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  };
 
   /* --------------------------------------------------------------------------
      Visual y formateo
@@ -1295,7 +1317,7 @@ const cargarResumenGlobalGenerico = useCallback(
               📋 {regionSeleccionada.toUpperCase()} — {agenteSeleccionado.nombre}
             </h2>
             <p className="text-xs text-gray-500">
-              📆 Datos desde {formatFechaLargoCR(inicio7d)} hasta {formatFechaLargoCR(fin7d)}
+              📅 {formatFechaLargoCR(fechaFijadaCtx ?? isoNDiasAtras(offsetDiasCtx))}
             </p>
           </div>
           <div className="flex justify-center gap-3 mb-4">
