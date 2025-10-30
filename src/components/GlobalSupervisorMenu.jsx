@@ -943,9 +943,38 @@ const cargarMetricaLiberty = useCallback(async () => {
     const totalExcel = registroDia?.total_excel || 0;
     const idRegistro = registroDia?.id;
 
-    // 4️⃣ Cálculo de la métrica
-    const pendientes = Math.max(totalCargados - totalAtendidos, 0);
-    const porcentaje = totalExcel > 0 ? ((pendientes / totalExcel) * 100).toFixed(1) : 0;
+        // 4️⃣ Cálculo de la Métrica Liberty — versión definitiva (totalDesabastoHoy - totalEfectivosHoy) / totalExcel
+    // === PDV en desabasto del día (vw_desabasto_unicos) ===
+    const { count: totalDesabastoHoy, error: errorDesabasto } = await supabase
+      .from("vw_desabasto_unicos")
+      .select("mdn_usuario", { count: "exact", head: true })
+      .gte("fecha_carga", `${fechaReferencia}T00:00:00`)
+      .lte("fecha_carga", `${fechaReferencia}T23:59:59`);
+    if (errorDesabasto) throw errorDesabasto;
+
+    // === PDV efectivos del día (atenciones_agentes) ===
+    const { count: totalEfectivosHoy, error: errorEfectivos } = await supabase
+      .from("atenciones_agentes")
+      .select("id", { count: "exact", head: true })
+      .gte("fecha", `${fechaReferencia}T00:00:00`)
+      .lte("fecha", `${fechaReferencia}T23:59:59`)
+      .eq("resultado", "efectivo");
+    if (errorEfectivos) throw errorEfectivos;
+
+    // === Cálculo final ===
+    const pendientes = Math.max(totalDesabastoHoy - totalEfectivosHoy, 0);
+    const porcentaje =
+      totalExcel > 0 ? ((pendientes / totalExcel) * 100).toFixed(1) : 0;
+
+    console.log("🧮 Métrica Liberty definitiva", {
+      fechaReferencia,
+      totalDesabastoHoy,
+      totalEfectivosHoy,
+      pendientes,
+      totalExcel,
+      porcentaje,
+    });
+
 
     // 5️⃣ Guardar en estado
     setMetricaLiberty({

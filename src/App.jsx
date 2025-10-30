@@ -94,7 +94,7 @@ export default function App() {
                   className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full transition-all disabled:opacity-50">
             {loading ? "Verificando..." : "Ingresar"}
           </button>
-          <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Sistema Manejo de Desabasto</p>
+          <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Sistema Manejo de Desabasto Ver.1.1</p>
         </div>
       </div>
     </div>
