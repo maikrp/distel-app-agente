@@ -101,20 +101,31 @@ export default function GlobalSupervisorMenu({ usuario }) {
     return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
   };
 
-  const formatFechaCortoCR = (iso) =>
-    parseISOasCRDate(iso).toLocaleDateString("es-CR", {
+  const formatFechaCortoCR = (iso) => {
+    const d = parseISOasCRDate(iso);
+    const opciones = {
       timeZone: TZ,
-      day: "2-digit",
-      month: "short",
-    });
-
-  const formatFechaLargoCR = (iso) =>
-    parseISOasCRDate(iso).toLocaleDateString("es-CR", {
-      timeZone: TZ,
+      weekday: "long",
       day: "2-digit",
       month: "short",
       year: "numeric",
-    });
+    };
+    const texto = d.toLocaleDateString("es-CR", opciones);
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  };
+
+  const formatFechaLargoCR = (iso) => {
+    const d = parseISOasCRDate(iso);
+    const opciones = {
+      timeZone: TZ,
+      weekday: "long",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    };
+    const texto = d.toLocaleDateString("es-CR", opciones);
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  };
 
   /* --------------------------------------------------------------------------
      Visual y formateo
@@ -191,10 +202,10 @@ const cargarResumenGlobalGenerico = useCallback(
   async (offsetDias = 0, fechaForzada = null) => {
     setLoading(true);
 
-    // Forzar misma fecha para vw_desabasto_unicos y atenciones_agentes
+    // Forzar misma fecha para vw_desabasto_unicos y atenciones_agentes (zona Costa Rica UTC−6)
     const fechaReferencia = fechaForzada ?? isoNDiasAtras(offsetDias);
-    const inicio = `${fechaReferencia}T00:00:00`;
-    const fin = `${fechaReferencia}T23:59:59`;
+    const inicio = new Date(`${fechaReferencia}T00:00:00-06:00`).toISOString();
+    const fin = new Date(`${fechaReferencia}T23:59:59-06:00`).toISOString();
 
     try {
       const { data: agentesDataRaw, error: agentesError } = await supabase
@@ -838,43 +849,49 @@ const cargarResumenGlobalGenerico = useCallback(
     }
   };
 
-  // === NUEVO: última fecha laborable (lunes a sábado, excluyendo hoy) ===
+  // === Última fecha laborable real en Costa Rica (corrige UTC) ===
   const obtenerUltimaFechaLaborable = async () => {
+    const pad = (n) => String(n).padStart(2, "0");
     try {
-      // Obtener todas las fechas de atenciones ordenadas descendente
       const { data, error } = await supabase
         .from("atenciones_agentes")
-        .select("fecha")
-        .order("fecha", { ascending: false });
+        .select("created_at")
+        .order("created_at", { ascending: false })
+        .limit(500); // evita traer demasiados registros
 
       if (error) throw error;
-      if (!data || data.length === 0) return null;
+      if (!data?.length) return null;
 
-      // Fecha de hoy en Costa Rica (para excluirla)
-      const hoyCR = new Date(
-        new Date().toLocaleString("en-US", { timeZone: TZ })
-      );
-      const hoyISO = hoyCR.toISOString().split("T")[0];
+      const fechasLocales = [];
 
-      const esDomingoCR = (iso) => {
-        const base = `${iso.split("T")[0]}T12:00:00Z`; // mediodía UTC
-        const dCR = new Date(new Date(base).toLocaleString("en-US", { timeZone: TZ }));
-        const day = dCR.getDay(); // 0=domingo, 1=lunes...
-        return day === 0;
-      };
-
-      // Buscar la última fecha que:
-      //  - no sea hoy
-      //  - no sea domingo
+      // Convertir cada registro a fecha local CR
       for (const r of data) {
-        const iso = r.fecha.split("T")[0];
-        if (iso === hoyISO) continue; // saltar hoy
-        if (!esDomingoCR(iso)) return iso;
+        if (!r.created_at) continue;
+
+        const fechaLocal = new Date(
+          new Date(r.created_at).toLocaleString("en-US", { timeZone: TZ })
+        );
+        const y = fechaLocal.getFullYear();
+        const m = pad(fechaLocal.getMonth() + 1);
+        const d = pad(fechaLocal.getDate());
+        const iso = `${y}-${m}-${d}`;
+
+        // No incluir hoy ni domingos
+        const hoyCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+        const hoyISO = `${hoyCR.getFullYear()}-${pad(hoyCR.getMonth() + 1)}-${pad(hoyCR.getDate())}`;
+        const dow = fechaLocal.getDay();
+        if (iso === hoyISO || dow === 0) continue;
+
+        if (!fechasLocales.find((f) => f.iso === iso)) {
+          fechasLocales.push({ iso, dow, ts: fechaLocal.getTime() });
+        }
       }
 
-      return null;
+      // Ordenar por timestamp descendente y devolver la más reciente
+      fechasLocales.sort((a, b) => b.ts - a.ts);
+      return fechasLocales[0]?.iso ?? null;
     } catch (err) {
-      console.error("Error al obtener última fecha laborable:", err.message);
+      console.error("Error obtenerUltimaFechaLaborable:", err.message);
       return null;
     }
   };
@@ -911,6 +928,29 @@ const cargarResumenGlobalGenerico = useCallback(
       return;
     }
   }, [vista, cargarResumenGlobalGenerico, cargarResumenHistorico]);
+
+
+  // === Actualizar vista automáticamente al pasar medianoche (zona CR) ===
+  useEffect(() => {
+    const TZ = "America/Costa_Rica";
+
+    const calcularMsHastaMedianoche = () => {
+      const ahora = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
+      const siguienteDia = new Date(ahora);
+      siguienteDia.setDate(ahora.getDate() + 1);
+      siguienteDia.setHours(0, 1, 0, 0); // 00:01
+      return siguienteDia - ahora;
+    };
+
+    const msHastaCambio = calcularMsHastaMedianoche();
+
+    const timer = setTimeout(() => {
+      window.location.reload(); // recarga la app para recalcular fecha
+    }, msHastaCambio);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   /* ============================== RENDERS ============================== */
 
   // NUEVO: Vista AdminTools (solo superadmin)
@@ -1295,8 +1335,8 @@ const cargarResumenGlobalGenerico = useCallback(
               📋 {regionSeleccionada.toUpperCase()} — {agenteSeleccionado.nombre}
             </h2>
             <p className="text-xs text-gray-500">
-              📆 Datos desde {formatFechaLargoCR(inicio7d)} hasta {formatFechaLargoCR(fin7d)}
-            </p>
+            📆 {formatFechaLargoCR(fechaFijadaCtx ?? hoyISO())}
+          </p>
           </div>
           <div className="flex justify-center gap-3 mb-4">
             <button
@@ -1336,18 +1376,7 @@ const cargarResumenGlobalGenerico = useCallback(
                   <p className="text-xs text-gray-500">MDN: {pdv.mdn_usuario}</p>
                   <p className="text-sm text-gray-700">Saldo: ₡{formatNumber(pdv.saldo)}</p>
                   <p className="text-sm text-gray-600">
-                    Promedio semanal: ₡{formatNumber(pdv.promedio_semanal)}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Última compra:{" "}
-                    {pdv.fecha_ultima_compra
-                      ? new Date(pdv.fecha_ultima_compra).toLocaleDateString("es-CR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          timeZone: "America/Costa_Rica",
-                        })
-                      : "N/D"}
+                    Promedio semanal: {formatNumber(pdv.promedio_semanal)}
                   </p>
                   <p
                     className={`text-xs font-semibold mt-1 ${

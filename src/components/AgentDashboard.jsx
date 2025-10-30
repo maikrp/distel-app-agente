@@ -246,7 +246,7 @@ export default function AgentDashboard({ usuario }) {
                     Saldo actual: ₡{formatNumber(pdv.saldo)}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Promedio semanal: {formatNumber(pdv.promedio_semanal)}
+                    Promedio semanal: ₡{formatNumber(pdv.promedio_semanal)}
                   </p>
                   <p className="text-sm text-gray-600">
                     Última compra:{" "}
@@ -301,9 +301,10 @@ export default function AgentDashboard({ usuario }) {
                   "No está encargado",
                   "PDV inactivo SIFAM",
                   "Se contacto sin respuesta",
-                  "Recargado/NO refleja por MR",
+                  "Recargado/Sin uso MR",
                   "Activador de chips",
-                  "No Valido/usuario personal",
+                  "Usuario personal",
+                  "Fuera Ruta/No SINPE",
                 ].map((motivo, idx) => (
                   <button
                     key={idx}
