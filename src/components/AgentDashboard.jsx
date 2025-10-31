@@ -220,7 +220,20 @@ export default function AgentDashboard({ usuario }) {
             />
           </div>
           <p className="text-xs md:text-sm text-gray-600">
-            Avance: {resumen.porcentajeAvance}%
+            Avance:{" "}
+            <span
+              className={`font-semibold ${
+                resumen.porcentajeAvance === 100
+                  ? "text-green-600"
+                  : resumen.porcentajeAvance >= 80
+                  ? "text-yellow-500"
+                  : resumen.porcentajeAvance >= 50
+                  ? "text-orange-500"
+                  : "text-red-600"
+              }`}
+            >
+              {resumen.porcentajeAvance}%
+            </span>
           </p>
         </div>
 
@@ -334,8 +347,16 @@ export default function AgentDashboard({ usuario }) {
               Resumen de resultados del día
             </h3>
             <div className="flex justify-around text-xs md:text-sm font-semibold">
-              <p className="text-green-600">
-                🟢 Efectivos: {resumen.efectivos} ({resumen.porcentajeEfectivos}%)
+              <p className="text-gray-700">
+                🟢 Efectivos: {resumen.efectivos} (
+                <span
+                  className={`font-semibold ${
+                    resumen.porcentajeEfectivos < 80 ? "text-red-600" : "text-green-600"
+                  }`}
+                >
+                  {resumen.porcentajeEfectivos}%
+                </span>
+                )
               </p>
               <p className="text-red-600">
                 🔴 No efectivos: {resumen.noEfectivos} ({resumen.porcentajeNoEfectivos}%)

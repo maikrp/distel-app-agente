@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 /* ============================================================================
-   GlobalSupervisorMenu.jsx
+   GlobalSupervisorMenu Ver 1.4.3.jsx
    - Menú y vistas de Supervisión Global
    - Vistas: menu | actual | anterior | historico | region | agente
              | historicoRegionAgentes | resumenMotivos | resumenMotivosRegion
@@ -78,21 +78,21 @@ export default function GlobalSupervisorMenu({ usuario }) {
      -------------------------------------------------------------------------- */
   const TZ = "America/Costa_Rica";
 
+  // === Corrección de fecha local CR, sin salto a UTC ===
   const hoyISO = () => {
-    const nowCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
-    const y = nowCR.getFullYear();
-    const m = String(nowCR.getMonth() + 1).padStart(2, "0");
-    const d = String(nowCR.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset(); // minutos respecto a UTC
+    // Ajustar a UTC-6 fijo (Costa Rica) y recortar a fecha
+    const crTime = new Date(now.getTime() - (tzOffset + 360) * 60 * 1000);
+    return crTime.toISOString().split("T")[0];
   };
 
   const isoNDiasAtras = (n) => {
-    const nowCR = new Date(new Date().toLocaleString("en-US", { timeZone: TZ }));
-    const d = new Date(nowCR.getFullYear(), nowCR.getMonth(), nowCR.getDate() - n);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${dd}`;
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset();
+    const crTime = new Date(now.getTime() - (tzOffset + 360) * 60 * 1000);
+    crTime.setDate(crTime.getDate() - n);
+    return crTime.toISOString().split("T")[0];
   };
 
   const parseISOasCRDate = (iso) => {
@@ -873,10 +873,7 @@ const cargarResumenGlobalGenerico = useCallback(
       if (!data || data.length === 0) return null;
 
       // Fecha de hoy en Costa Rica (para excluirla)
-      const hoyCR = new Date(
-        new Date().toLocaleString("en-US", { timeZone: TZ })
-      );
-      const hoyISO = hoyCR.toISOString().split("T")[0];
+      const hoyHoy = hoyISO(); // usa la función hoyISO() definida arriba
 
       const esDomingoCR = (iso) => {
         const base = `${iso.split("T")[0]}T12:00:00Z`; // mediodía UTC
@@ -890,7 +887,7 @@ const cargarResumenGlobalGenerico = useCallback(
       //  - no sea domingo
       for (const r of data) {
         const iso = r.fecha.split("T")[0];
-        if (iso === hoyISO) continue; // saltar hoy
+        if (iso === hoyHoy) continue; // saltar hoy
         if (!esDomingoCR(iso)) return iso;
       }
 
@@ -1197,10 +1194,32 @@ const cargarMetricaLiberty = useCallback(async () => {
             />
           </div>
           <p className="text-sm text-center text-gray-700 mb-1">
-            Avance Global: {porcentajeGlobal}% — {totalGlobalAtendidos} de {totalGlobalDesabasto} PDV atendidos
+            Avance Global:{" "}
+            <span
+              className={`font-semibold ${
+                porcentajeGlobal === 100
+                  ? "text-green-600"
+                  : porcentajeGlobal >= 80
+                  ? "text-yellow-500"
+                  : porcentajeGlobal >= 50
+                  ? "text-orange-500"
+                  : "text-red-600"
+              }`}
+            >
+              {porcentajeGlobal}%
+            </span>{" "}
+            — {totalGlobalAtendidos} de {totalGlobalDesabasto} PDV atendidos
           </p>
           <p className="text-xs text-center text-gray-600 mb-1">
-            Efectividad Global: {porcentajeGlobalEfectividad}% — Efectivos {totalGlobalEfectivos} de {totalGlobalAtendidos}
+            Efectividad Global:{" "}
+            <span
+              className={`font-semibold ${
+                porcentajeGlobalEfectividad < 80 ? "text-red-600" : "text-green-600"
+              }`}
+            >
+              {porcentajeGlobalEfectividad}%
+            </span>{" "}
+            — Efectivos {totalGlobalEfectivos} de {totalGlobalAtendidos}
           </p>
           
           {/* === Métrica de Desabasto Liberty === */}
