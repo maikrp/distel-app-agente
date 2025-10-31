@@ -341,7 +341,6 @@ const cargarResumenGlobalGenerico = useCallback(
   []
 );
 
-
   // Agentes de una región por fecha con efectividad
   const cargarRegion = async (regionNorm, offsetDias = 0) => {
     setLoading(true);
@@ -1273,10 +1272,33 @@ const cargarMetricaLiberty = useCallback(async () => {
                   </div>
 
                   <p className="text-xs text-gray-700">
-                    Avance: {r.porcentajeAvance}% — {r.totalRegionAtendidos} de {r.totalRegionDesabasto}
+                    Avance:{" "}
+                    <span
+                      className={`font-semibold ${
+                        r.porcentajeAvance === 100
+                          ? "text-green-600"
+                          : r.porcentajeAvance >= 80
+                          ? "text-yellow-500"
+                          : r.porcentajeAvance >= 50
+                          ? "text-orange-500"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {r.porcentajeAvance}%
+                    </span>{" "}
+                    — {r.totalRegionAtendidos} de {r.totalRegionDesabasto}
                   </p>
+
                   <p className="text-xs text-gray-600 mb-2">
-                    Efectividad: {r.porcentajeEfectividad}% — Efectivos {r.totalRegionEfectivos} de {r.totalRegionAtendidos}
+                    Efectividad:{" "}
+                    <span
+                      className={`font-semibold ${
+                        r.porcentajeEfectividad < 80 ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {r.porcentajeEfectividad}%
+                    </span>{" "}
+                    — Efectivos {r.totalRegionEfectivos} de {r.totalRegionAtendidos}
                   </p>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -1302,9 +1324,8 @@ const cargarMetricaLiberty = useCallback(async () => {
       </div>
     );
   }
-
    
-  // Vista: agentes por región
+  // Vista: agentes por región//
   if (vista === "region" && regionSeleccionada) {
     const totalZonaDesabasto = agentesRegion.reduce((s, a) => s + (a.totalDesabasto || 0), 0);
     const totalZonaAtendidos = agentesRegion.reduce((s, a) => s + (a.totalAtendidos || 0), 0);
@@ -1374,26 +1395,34 @@ const cargarMetricaLiberty = useCallback(async () => {
                   </h3>
                   <p className="text-xs text-gray-500 mb-1">Ruta {a.ruta_excel}</p>
 
-                  <div className="bg-gray-300 rounded-full h-3 overflow-hidden mb-2">
-                    <div
-                      className={`${
-                        a.porcentajeAvance === 100
-                          ? "bg-green-600"
-                          : a.porcentajeAvance >= 80
-                          ? "bg-yellow-400"
-                          : a.porcentajeAvance >= 50
-                          ? "bg-orange-500"
-                          : "bg-red-600"
-                      } h-3`}
-                      style={{ width: `${a.porcentajeAvance}%` }}
-                    />
-                  </div>
-
                   <p className="text-xs text-gray-700">
-                    Avance: {a.totalAtendidos} de {a.totalDesabasto} ({a.porcentajeAvance}%)
+                    Avance:{" "}
+                    <span
+                      className={`font-semibold ${
+                        a.porcentajeAvance === 100
+                          ? "text-green-600"
+                          : a.porcentajeAvance >= 80
+                          ? "text-yellow-500"
+                          : a.porcentajeAvance >= 50
+                          ? "text-orange-500"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {a.porcentajeAvance}%
+                    </span>{" "}
+                    — {a.totalAtendidos} de {a.totalDesabasto}
                   </p>
+
                   <p className="text-xs text-gray-600 mb-2">
-                    Efectividad: {a.porcentajeEfectividad}% — Efectivos {a.efectivos} de {a.totalAtendidos}
+                    Efectividad:{" "}
+                    <span
+                      className={`font-semibold ${
+                        a.porcentajeEfectividad < 80 ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {a.porcentajeEfectividad}%
+                    </span>{" "}
+                    — Efectivos {a.efectivos} de {a.totalAtendidos}
                   </p>
 
                   <button
@@ -1410,7 +1439,6 @@ const cargarMetricaLiberty = useCallback(async () => {
       </div>
     );
   }
-
   // Vista: detalle del agente
   if (vista === "agente" && detallesAgente && agenteSeleccionado && regionSeleccionada) {
     const { pendientes, atenciones } = detallesAgente;
@@ -1454,7 +1482,6 @@ const cargarMetricaLiberty = useCallback(async () => {
         return "";
       }
     };
-
     return (
       <div className="min-h-screen sm:min-h-[90vh] bg-gray-100 flex items-start sm:items-center justify-center px-4 py-6 sm:py-10 overflow-hidden">
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
@@ -1483,17 +1510,35 @@ const cargarMetricaLiberty = useCallback(async () => {
               🔄 Actualizar
             </button>
           </div>
-
           <div className="text-center mb-4">
             <p className="text-sm text-gray-700">
               Desabasto: {totalDesabasto} | Atendidos: {totalAtendidos}
             </p>
             <p className="text-xs text-gray-600">
-              🟢 Efectivos {efectivos} ({porcentajeEfectividad}%) — 🔴 No efectivos {noEfectivos} (
-              {porcentajeNoEfectivos}%) — Avance total {porcentajeAvance}%
+              🟢 Efectivos {efectivos} (
+              <span
+                className={`font-semibold ${
+                  porcentajeEfectividad < 80 ? "text-red-600" : "text-green-600"
+                }`}
+              >
+                {porcentajeEfectividad}%
+              </span>
+              ) — 🔴 No efectivos {noEfectivos} ({porcentajeNoEfectivos}%) — Avance total{" "}
+              <span
+                className={`font-semibold ${
+                  porcentajeAvance === 100
+                    ? "text-green-600"
+                    : porcentajeAvance >= 80
+                    ? "text-yellow-500"
+                    : porcentajeAvance >= 50
+                    ? "text-orange-500"
+                    : "text-red-600"
+                }`}
+              >
+                {porcentajeAvance}%
+              </span>
             </p>
           </div>
-
           {pendientes.length === 0 ? (
             <p className="text-center text-gray-600 mt-2">Todos los PDV fueron atendidos ✅</p>
           ) : (
