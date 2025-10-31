@@ -255,7 +255,7 @@ export default function App() {
 
   // --- Menú Principal ---
   const menuPrincipal = (
-    <div className="min-h-screen bg-gray-100 flex items-start justify-center sm:pt-6 md:pt-10 lg:pt-14 -mt-10">
+    <div className="min-h-screen bg-gray-100 flex items-start justify-center pt-10 sm:pt-12 md:pt-16">
       <div className="bg-white shadow-lg rounded-3xl p-6 text-center border border-gray-200 w-[360px] max-w-[90%] max-h-[90vh] overflow-auto">
         <div className="flex items-center justify-center space-x-6 mb-6">
           <img src="/liberty.png" alt="Logo Liberty" className="w-24 h-24 object-contain" />
@@ -279,7 +279,6 @@ export default function App() {
             Visitas
           </button>
 
-
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
             className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold"
@@ -299,6 +298,7 @@ export default function App() {
       </div>
     </div>
   );
+
 
   // --- Desabasto ---
   const desabastoScreen = (
