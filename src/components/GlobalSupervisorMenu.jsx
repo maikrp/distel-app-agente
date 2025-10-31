@@ -1376,10 +1376,33 @@ const cargarMetricaLiberty = useCallback(async () => {
             <div className={`${colorZona} h-4`} style={{ width: `${porcentajeZona}%` }} />
           </div>
           <p className="text-sm text-center text-gray-700">
-            Avance: {totalZonaAtendidos} de {totalZonaDesabasto} ({porcentajeZona}%)
+            Avance: {totalZonaAtendidos} de {totalZonaDesabasto} (
+            <span
+              className={`font-semibold ${
+                porcentajeZona === 100
+                  ? "text-green-600"
+                  : porcentajeZona >= 80
+                  ? "text-yellow-500"
+                  : porcentajeZona >= 50
+                  ? "text-orange-500"
+                  : "text-red-600"
+              }`}
+            >
+              {porcentajeZona}%
+            </span>
+            )
           </p>
+
           <p className="text-xs text-center text-gray-600 mb-4">
-            Efectividad: {porcentajeZonaEfectividad}% — Efectivos {totalZonaEfectivos} de {totalZonaAtendidos}
+            Efectividad:{" "}
+            <span
+              className={`font-semibold ${
+                porcentajeZonaEfectividad < 80 ? "text-red-600" : "text-green-600"
+              }`}
+            >
+              {porcentajeZonaEfectividad}%
+            </span>{" "}
+            — Efectivos {totalZonaEfectivos} de {totalZonaAtendidos}
           </p>
 
           {agentesRegion.length === 0 ? (
