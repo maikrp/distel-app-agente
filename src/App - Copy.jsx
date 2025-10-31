@@ -108,6 +108,7 @@ export default function App() {
   localStorage.removeItem("vista"); // ← agrega esta línea
 };
 
+
   // --- useEffect principal para control de sesión y botón atrás ---
   useEffect(() => {
     // Asegura que siempre se muestre algo válido al cargar
@@ -273,12 +274,11 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => window.open("https://visitas.distelcr.com", "_self")}
+            onClick={() => setVista("visitas")}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
             Visitas
           </button>
-
 
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
@@ -344,6 +344,30 @@ export default function App() {
   else if (vista === "cambioClave") contenido = cambioClaveScreen;
   else if (vista === "menuPrincipal") contenido = menuPrincipal;
   else if (vista === "desabasto") contenido = desabastoScreen;
+  else if (vista === "visitas")
+  contenido = (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="bg-white shadow-lg rounded-3xl p-4 text-center border border-gray-200 w-[95%] max-w-[420px] flex flex-col overflow-hidden">
+        {/* IFRAME dentro de la tarjeta */}
+        <div className="flex-1 overflow-hidden rounded-2xl border border-gray-200">
+          <iframe
+            src="https://visitas.distelcr.com/"
+            title="App de Visitas"
+            className="w-full h-[70vh] border-none rounded-2xl"
+            allow="geolocation; microphone; camera"
+          ></iframe>
+        </div>
+
+        {/* Botón dentro del mismo marco blanco */}
+        <button
+          onClick={() => setVista("menuPrincipal")}
+          className="mt-4 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold w-full"
+        >
+          ← Volver al Menú Principal
+        </button>
+      </div>
+    </div>
+  );
   else contenido = loginScreen; // fallback seguro
 
   const wrapperClass = isDesktop ? "emulator-desktop-mode" : "";
