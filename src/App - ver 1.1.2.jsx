@@ -276,14 +276,14 @@ export default function App() {
             onClick={() => window.open("https://visitas.distelcr.com", "_self")}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
-            Clientes
+            Visitas
           </button>
 
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
             className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold"
           >
-            Control de Ingreso
+            Actualizar Cliente
           </button>
 
           <button
