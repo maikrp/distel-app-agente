@@ -1353,12 +1353,6 @@ export default function GlobalSupervisorMenu({ usuario }) {
                         </span>{" "}
                         — {a.totalAtendidos} de {a.totalDesabasto}
                       </p>
-                        >
-                          {a.porcentajeAvance}%
-                        </span>{" "}
-                        — {a.totalAtendidos} de {a.totalDesabasto}
-                      </p>
-
                       <p className="text-xs mb-2">
                         Efectividad:{" "}
                         <span
