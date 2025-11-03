@@ -1,3 +1,8 @@
+/* ============================================================================
+   app.jsx — versión 1.1.0 funcional
+   - Se actualizan los nombres de los menu
+   ============================================================================ */
+
 import { useState, useEffect } from "react";
 import bcrypt from "bcryptjs";
 import { supabase } from "./supabaseClient";
@@ -200,7 +205,7 @@ export default function App() {
             {loading ? "Verificando..." : "Ingresar"}
           </button>
           <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema Manejo de Desabasto Ver.1.4
+            © 2025 Distel — Sistema Manejo de Clientes Ver.1.4
           </p>
         </div>
       </div>
@@ -269,14 +274,14 @@ export default function App() {
             onClick={() => setVista("desabasto")}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold"
           >
-            Desabasto
+            Manejo Desabasto
           </button>
 
           <button
             onClick={() => window.open("https://visitas.distelcr.com", "_self")}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
-            Clientes
+            Actualización de Clientes
           </button>
 
           <button
