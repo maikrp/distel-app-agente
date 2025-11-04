@@ -1,6 +1,7 @@
 /* ============================================================================
-   app.jsx — versión 1.1.0 funcional
-   - Se actualizan los nombres de los menu
+   app.jsx — versión 1.2.3 funcional
+   - Agregado botón “Panel de Administración” visible solo para superadmin
+   - Integra AdminToolsPanel dentro del flujo principal
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -11,6 +12,7 @@ import SupervisorMenu from "./components/SupervisorMenu";
 import GlobalSupervisorMenu from "./components/GlobalSupervisorMenu";
 import EmulatorModal from "./components/EmulatorModal";
 import useEmulatorMode from "./hooks/useEmulatorMode";
+import AdminToolsPanel from "./components/AdminToolsPanel";
 
 export default function App() {
   const [telefono, setTelefono] = useState("");
@@ -27,6 +29,7 @@ export default function App() {
 
   const isDesktop = useEmulatorMode();
 
+  // --- LOGIN ---
   const handleLogin = async () => {
     const tel = telefono.trim();
     const pass = clave.trim();
@@ -70,6 +73,7 @@ export default function App() {
     setLoading(false);
   };
 
+  // --- CAMBIO DE CLAVE ---
   const handleCambioClave = async () => {
     if (!nuevaClave || nuevaClave.length < 4) {
       alert("La nueva clave debe tener al menos 4 dígitos.");
@@ -101,32 +105,28 @@ export default function App() {
     setLoading(false);
   };
 
+  // --- LOGOUT ---
   const handleLogout = () => {
-  setUsuario(null);
-  setTelefono("");
-  setClave("");
-  setNuevaClave("");
-  setConfirmarClave("");
-  setRequiereCambio(false);
-  setVista("login");
-  localStorage.removeItem("usuario");
-  localStorage.removeItem("vista"); // ← agrega esta línea
-};
+    setUsuario(null);
+    setTelefono("");
+    setClave("");
+    setNuevaClave("");
+    setConfirmarClave("");
+    setRequiereCambio(false);
+    setVista("login");
+    localStorage.removeItem("usuario");
+    localStorage.removeItem("vista");
+  };
 
-  // --- useEffect principal para control de sesión y botón atrás ---
+  // --- EFECTOS ---
   useEffect(() => {
-    // Asegura que siempre se muestre algo válido al cargar
     if (!usuario) {
       setVista("login");
       return;
     }
-
-    // Si hay usuario y no hay vista activa → menú principal
     if (usuario && !vista) {
       setVista("menuPrincipal");
     }
-
-    // Mantiene bloqueo del botón atrás
     window.history.pushState(null, "", window.location.href);
     const handlePopState = () => {
       window.history.pushState(null, "", window.location.href);
@@ -135,12 +135,10 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [usuario, vista]);
 
-  // --- useEffect separado para guardar vista actual ---
   useEffect(() => {
     localStorage.setItem("vista", vista);
   }, [vista]);
 
-  // --- useEffect separado para bloquear pull-to-refresh ---
   useEffect(() => {
     let lastY = 0;
     const preventPullToRefresh = (e) => {
@@ -159,7 +157,7 @@ export default function App() {
     if (e.key === "Enter") handleCambioClave();
   };
 
-  // --- Pantalla de Login ---
+  // --- LOGIN SCREEN ---
   const loginScreen = (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center sm:block sm:pt-10">
       <div className="w-full flex items-center justify-center">
@@ -212,7 +210,7 @@ export default function App() {
     </div>
   );
 
-  // --- Cambio de Clave ---
+  // --- CAMBIO DE CLAVE ---
   const cambioClaveScreen = (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="bg-white shadow-lg rounded-3xl p-8 w-full max-w-sm border border-gray-200 text-center animate-fadeIn">
@@ -258,7 +256,7 @@ export default function App() {
     </div>
   );
 
-  // --- Menú Principal ---
+  // --- MENÚ PRINCIPAL ---
   const menuPrincipal = (
     <div className="min-h-screen bg-gray-100 flex items-start justify-center pt-10 sm:pt-12 md:pt-16">
       <div className="bg-white shadow-lg rounded-3xl p-6 text-center border border-gray-200 w-[360px] max-w-[90%] max-h-[90vh] overflow-auto">
@@ -291,6 +289,16 @@ export default function App() {
             Control de Ingreso
           </button>
 
+          {/* NUEVO BOTÓN SOLO PARA SUPERADMIN */}
+          {usuario?.acceso === "superadmin" && (
+            <button
+              onClick={() => setVista("adminTools")}
+              className="w-full bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-lg font-semibold"
+            >
+              🧰 Panel de Administración
+            </button>
+          )}
+
           <button
             onClick={handleLogout}
             className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold"
@@ -304,8 +312,7 @@ export default function App() {
     </div>
   );
 
-
-  // --- Desabasto ---
+  // --- DESABASTO ---
   const desabastoScreen = (
     <div className="bg-gray-50 flex flex-col sm:min-h-screen">
       <div className="flex justify-between items-center p-4 bg-blue-700 text-white">
@@ -338,18 +345,24 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.1
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2
       </footer>
     </div>
   );
 
-  // --- Render principal ---
+  // --- PANEL ADMINISTRATIVO ---
+  const adminToolsScreen = (
+    <AdminToolsPanel onVolver={() => setVista("menuPrincipal")} />
+  );
+
+  // --- RENDER PRINCIPAL ---
   let contenido;
   if (vista === "login") contenido = loginScreen;
   else if (vista === "cambioClave") contenido = cambioClaveScreen;
   else if (vista === "menuPrincipal") contenido = menuPrincipal;
   else if (vista === "desabasto") contenido = desabastoScreen;
-  else contenido = loginScreen; // fallback seguro
+  else if (vista === "adminTools") contenido = adminToolsScreen;
+  else contenido = loginScreen;
 
   const wrapperClass = isDesktop ? "emulator-desktop-mode" : "";
 
