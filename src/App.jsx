@@ -1,7 +1,7 @@
 /* ============================================================================
-   app.jsx — versión 1.2.3 funcional
-   - Agregado botón “Panel de Administración” visible solo para superadmin
-   - Integra AdminToolsPanel dentro del flujo principal
+   app.jsx — versión 1.2.4 funcional
+   - Redirección automática a visitas.distelcr.com con datos del usuario
+   - Compatible con login por teléfono y clave
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -67,7 +67,7 @@ export default function App() {
       return;
     }
 
-    // Consolidar datos del agente (solo los necesarios y en formato limpio)
+    // Consolidar datos del agente (solo los necesarios)
     const usuarioVerificado = {
       nombre: agente.nombre,
       telefono: agente.telefono,
@@ -80,9 +80,14 @@ export default function App() {
 
     setUsuario(usuarioVerificado);
     localStorage.setItem("usuario", JSON.stringify(usuarioVerificado));
-    setVista("menuPrincipal");
-    setLoading(false);
-  };
+
+    // 🔗 Redirigir con datos al módulo de visitas
+    window.location.href = `https://visitas.distelcr.com/?telefono=${encodeURIComponent(
+      usuarioVerificado.telefono
+    )}&nombre=${encodeURIComponent(usuarioVerificado.nombre)}&acceso=${encodeURIComponent(
+      usuarioVerificado.acceso
+    )}`;
+  }; // ← cierre correcto del handleLogin
 
   // --- CAMBIO DE CLAVE ---
   const handleCambioClave = async () => {
@@ -300,7 +305,6 @@ export default function App() {
             Control de Ingreso
           </button>
 
-          {/* NUEVO BOTÓN SOLO PARA SUPERADMIN */}
           {usuario?.acceso === "superadmin" && (
             <button
               onClick={() => setVista("adminTools")}
@@ -318,7 +322,9 @@ export default function App() {
           </button>
         </div>
 
-        <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Menú Principal</p>
+        <p className="text-xs text-gray-400 mt-6">
+          © 2025 Distel — Menú Principal
+        </p>
       </div>
     </div>
   );
@@ -362,9 +368,7 @@ export default function App() {
   );
 
   // --- PANEL ADMINISTRATIVO ---
-  const adminToolsScreen = (
-    <AdminToolsPanel onVolver={() => setVista("menuPrincipal")} />
-  );
+  const adminToolsScreen = <AdminToolsPanel onVolver={() => setVista("menuPrincipal")} />;
 
   // --- RENDER PRINCIPAL ---
   let contenido;
