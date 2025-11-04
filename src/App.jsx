@@ -67,8 +67,19 @@ export default function App() {
       return;
     }
 
-    setUsuario(agente);
-    localStorage.setItem("usuario", JSON.stringify(agente));
+    // Consolidar datos del agente (solo los necesarios y en formato limpio)
+    const usuarioVerificado = {
+      nombre: agente.nombre,
+      telefono: agente.telefono,
+      acceso: agente.acceso,
+      tipo: agente.tipo,
+      region: agente.region,
+      ruta_excel: agente.ruta_excel,
+      activo: agente.activo,
+    };
+
+    setUsuario(usuarioVerificado);
+    localStorage.setItem("usuario", JSON.stringify(usuarioVerificado));
     setVista("menuPrincipal");
     setLoading(false);
   };
