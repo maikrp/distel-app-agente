@@ -1,9 +1,10 @@
 /* ============================================================================
-   App.jsx — versión 1.2.6
+   App.jsx — versión 1.2.6 FINAL
    - Sesión compartida entre subdominios (.distelcr.com)
    - Crea cookie distelSession al iniciar sesión
    - Limpia cookie al cerrar sesión (logout global)
    - Corrige duplicados de setUsuario/setVista
+   - Corrige cierre de llaves y return fuera de función
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -239,19 +240,11 @@ export default function App() {
     </div>
   );
 
-  // --- RESTO DE PANTALLAS (idénticas a v1.2.5) ---
-  // menuPrincipal, cambioClaveScreen, desabastoScreen, adminToolsScreen ...
-
-  // [No se altera el resto del render ni la estructura del menú o vistas]
-}
-
   // --- CAMBIO DE CLAVE ---
   const cambioClaveScreen = (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="bg-white shadow-lg rounded-3xl p-8 w-full max-w-sm border border-gray-200 text-center animate-fadeIn">
-        <h2 className="text-lg font-bold text-gray-800 mb-4">
-          Hola {usuario?.nombre || ""}
-        </h2>
+        <h2 className="text-lg font-bold text-gray-800 mb-4">Hola {usuario?.nombre || ""}</h2>
         <p className="text-gray-700 mb-4">
           Por seguridad, debe cambiar su clave temporal antes de continuar.
         </p>
@@ -300,7 +293,9 @@ export default function App() {
           <img src="/logo_distel.png" alt="Logo Distel" className="w-24 h-24 object-contain" />
         </div>
         <h1 className="text-2xl font-bold text-gray-800 mb-2">Menú Principal</h1>
-        <h2 className="text-lg font-semibold text-gray-700 mb-6">Seleccione una opción</h2>
+        <h2 className="text-lg font-semibold text-gray-700 mb-6">
+          Bienvenido {usuario?.nombre || ""}
+        </h2>
 
         <div className="space-y-3">
           <button
@@ -341,9 +336,7 @@ export default function App() {
           </button>
         </div>
 
-        <p className="text-xs text-gray-400 mt-6">
-          © 2025 Distel — Menú Principal
-        </p>
+        <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Menú Principal</p>
       </div>
     </div>
   );
@@ -381,7 +374,7 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2.6
       </footer>
     </div>
   );
