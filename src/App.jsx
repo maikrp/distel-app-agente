@@ -1,8 +1,10 @@
 /* ============================================================================
-   App.jsx — versión 1.2.9 CORREGIDA (anti-loop estable)
-   - Limpia flags y cookie distelSession al volver de visitas.distelcr.com
-   - Evita bucle de reinicio de sesión conservando estructura de 1.2.8
-   - Sin eliminación de lógica ni JSX previo
+   App.jsx — versión 1.2.8 CORREGIDA
+   - Mantiene sesión compartida entre subdominios (.distelcr.com)
+   - Evita bucle al regresar de visitas.distelcr.com
+   - Sanea parámetros sensibles en URL (telefono, nombre, acceso)
+   - Normaliza 'vista' persistida y usa anti-loop con sessionStorage
+   - Conserva estructura y lógica de 1.2.7
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -37,48 +39,52 @@ export default function App() {
   })();
   const [requiereCambio, setRequiereCambio] = useState(false);
   const [vista, setVista] = useState(initialVista);
-  const [redirecting, setRedirecting] = useState(false);
+  const [redirecting, setRedirecting] = useState(false); // bandera anti doble redirección
 
   const isDesktop = useEmulatorMode();
 
   /* --------------------------------------------------------------------------
-     BLOQUE ANTI-LOOP Y LIMPIEZA DE SESIÓN AL MONTAR
-  -------------------------------------------------------------------------- */
-  useEffect(() => {
-    const ref = document.referrer || "";
-    const fromVisitas = /visitas\.distelcr\.com/i.test(ref);
-    const hadFlag = sessionStorage.getItem("redirectToVisitas") === "true";
-
-    if (fromVisitas || hadFlag) {
-      sessionStorage.removeItem("redirectToVisitas");
-      try {
-        document.cookie =
-          "distelSession=; Max-Age=0; path=/; domain=.distelcr.com; secure; samesite=strict";
-      } catch (_) {}
-      localStorage.removeItem("vista");
-      setRedirecting(false);
-      if (usuario) setVista("menuPrincipal");
-      else setVista("login");
-    }
-  }, []); // solo al montar
-
-  /* --------------------------------------------------------------------------
-     SANITIZACIÓN DE URL (parámetros sensibles)
+     ANTI-LOOP Y SANITIZACIÓN DE URL AL MONTAR
+     - Elimina parámetros sensibles si existen
+     - Detecta retorno desde visitas.distelcr.com y fuerza menú principal
+     - Usa sessionStorage para amortiguar redirecciones consecutivas
   -------------------------------------------------------------------------- */
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
       const params = url.searchParams;
+
       const sensitiveParams = ["telefono", "nombre", "acceso"];
       const hasSensitive = sensitiveParams.some((p) => params.has(p));
-      if (hasSensitive) {
+
+      const cameFromVisitas =
+        document.referrer && /https?:\/\/visitas\.distelcr\.com/i.test(document.referrer);
+
+      // Evitar bucles de ida/vuelta en menos de 2s
+      const lastExternalTs = Number(sessionStorage.getItem("lastExternalRedirectTS") || "0");
+      const now = Date.now();
+      const antiLoopWindowMs = 2000;
+      const inAntiLoop = now - lastExternalTs < antiLoopWindowMs;
+
+      if (hasSensitive || cameFromVisitas || inAntiLoop) {
+        // Limpiar query y hash
         url.search = "";
         url.hash = "";
         window.history.replaceState(null, "", url.toString());
+
+        // Normalizar estado local
+        setRedirecting(false);
+        if (usuario) {
+          setVista("menuPrincipal");
+        } else {
+          setVista("login");
+        }
       }
     } catch {
       // no-op
     }
+    // Solo al montar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- LOGIN ---
@@ -120,6 +126,7 @@ export default function App() {
       return;
     }
 
+    // Consolidar datos del agente (solo los necesarios)
     const usuarioVerificado = {
       nombre: agente.nombre,
       telefono: agente.telefono,
@@ -130,9 +137,11 @@ export default function App() {
       activo: agente.activo,
     };
 
+    // Guardar en localStorage
     setUsuario(usuarioVerificado);
     localStorage.setItem("usuario", JSON.stringify(usuarioVerificado));
 
+    // Cookie compartida subdominios
     const sessionData = {
       telefono: usuarioVerificado.telefono,
       nombre: usuarioVerificado.nombre,
@@ -143,6 +152,7 @@ export default function App() {
       JSON.stringify(sessionData)
     )}; path=/; domain=.distelcr.com; secure; samesite=strict`;
 
+    // Flujo normal
     setVista("menuPrincipal");
     setLoading(false);
   };
@@ -184,6 +194,7 @@ export default function App() {
   const handleLogout = () => {
     document.cookie =
       "distelSession=; Max-Age=0; path=/; domain=.distelcr.com; secure; samesite=strict";
+
     setUsuario(null);
     setTelefono("");
     setClave("");
@@ -191,27 +202,38 @@ export default function App() {
     setConfirmarClave("");
     setRequiereCambio(false);
     setVista("login");
-    localStorage.clear();
-    sessionStorage.clear();
+    localStorage.removeItem("usuario");
+    localStorage.removeItem("vista");
+
+    // Limpia bandera anti-loop
+    sessionStorage.removeItem("lastExternalRedirectTS");
   };
 
-  // --- EFECTOS SECUNDARIOS ---
+  // --- EFECTOS ---
   useEffect(() => {
+    // Normaliza vista al cambiar usuario
     if (!usuario) {
       setVista("login");
       return;
     }
-    if (usuario && !allowVistas.has(vista)) setVista("menuPrincipal");
+    if (usuario && !allowVistas.has(vista)) {
+      setVista("menuPrincipal");
+    }
 
+    // Bloquea "atrás" para evitar reingreso involuntario a visitas
     window.history.pushState(null, "", window.location.href);
     const handlePopState = () => window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [usuario, vista]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario]);
 
   useEffect(() => {
-    if (allowVistas.has(vista)) localStorage.setItem("vista", vista);
-    else localStorage.removeItem("vista");
+    if (allowVistas.has(vista)) {
+      localStorage.setItem("vista", vista);
+    } else {
+      localStorage.removeItem("vista");
+    }
   }, [vista]);
 
   useEffect(() => {
@@ -278,7 +300,7 @@ export default function App() {
             {loading ? "Verificando..." : "Ingresar"}
           </button>
           <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema Manejo de Clientes Ver.1.2.9
+            © 2025 Distel — Sistema Manejo de Clientes Ver.1.2.8
           </p>
         </div>
       </div>
@@ -354,8 +376,11 @@ export default function App() {
             onClick={() => {
               if (!redirecting) {
                 setRedirecting(true);
-                sessionStorage.setItem("redirectToVisitas", "true");
+                // Marcar timestamp de salida para anti-loop en el retorno
+                sessionStorage.setItem("lastExternalRedirectTS", String(Date.now()));
+                // No pasamos teléfono/nombre como query
                 window.location.href = "https://visitas.distelcr.com/?_=" + Date.now();
+                // fallback para desbloquear bandera si el navegador bloquea la salida
                 setTimeout(() => setRedirecting(false), 1500);
               }
             }}
@@ -363,6 +388,22 @@ export default function App() {
           >
             Actualización de Clientes
           </button>
+
+          <button
+            onClick={() => alert("Función de actualización de cliente en desarrollo")}
+            className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-3 rounded-lg font-semibold"
+          >
+            Control de Ingreso
+          </button>
+
+          {usuario?.acceso === "superadmin" && (
+            <button
+              onClick={() => setVista("adminTools")}
+              className="w-full bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-lg font-semibold"
+            >
+              🧰 Panel de Administración
+            </button>
+          )}
 
           <button
             onClick={handleLogout}
@@ -410,13 +451,15 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2.9
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2.8
       </footer>
     </div>
   );
 
+  // --- PANEL ADMINISTRATIVO ---
   const adminToolsScreen = <AdminToolsPanel onVolver={() => setVista("menuPrincipal")} />;
 
+  // --- RENDER PRINCIPAL ---
   let contenido;
   if (vista === "login") contenido = loginScreen;
   else if (vista === "cambioClave") contenido = cambioClaveScreen;
