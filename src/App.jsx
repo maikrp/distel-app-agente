@@ -369,7 +369,8 @@ export default function App() {
                 setRedirecting(true);
                 sessionStorage.setItem("redirectToVisitas", "true");
                 sessionStorage.setItem("readyForVisitas", "false");
-                window.location.href = "https://visitas.distelcr.com/?_=" + Date.now();
+                // 🔹 uso de window.open en lugar de location.href
+                window.open("https://visitas.distelcr.com/?_=" + Date.now(), "_self");
                 setTimeout(() => setRedirecting(false), 1500);
               }
             }}
@@ -377,6 +378,7 @@ export default function App() {
           >
             Actualización de Clientes
           </button>
+
 
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
