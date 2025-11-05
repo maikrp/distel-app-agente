@@ -306,7 +306,9 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => window.open("https://visitas.distelcr.com", "_self")}
+            onClick={() => {
+              window.location.href = "https://visitas.distelcr.com/?_=" + Date.now();
+            }}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
             Actualización de Clientes
