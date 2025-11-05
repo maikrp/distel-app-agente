@@ -342,24 +342,26 @@ export default function App() {
               if (redirecting) return;
               setRedirecting(true);
 
-              if (USE_NEW_TAB_FOR_VISITAS) {
-                // Abre nueva pestaña. Cerrar esa pestaña no afecta a la app.
-                window.open(
-                  "https://visitas.distelcr.com/?_=" + Date.now(),
-                  "_blank",
-                  "noopener,noreferrer"
-                );
-                // Desbloqueo de la bandera por si el navegador bloquea popups
-                setTimeout(() => setRedirecting(false), 1200);
-              } else {
-                // Fallback opcional: misma pestaña (no recomendado si hay loop)
-                window.location.assign("https://visitas.distelcr.com/?_=" + Date.now());
-              }
+              // Token simple (datos no sensibles)
+              const token = btoa(
+                JSON.stringify({
+                  telefono: usuario.telefono,
+                  nombre: usuario.nombre,
+                  acceso: usuario.acceso,
+                  t: Date.now(),
+                })
+              );
+
+              const url = `https://visitas.distelcr.com/?token=${token}`;
+
+              window.open(url, "_blank", "noopener,noreferrer");
+              setTimeout(() => setRedirecting(false), 1200);
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
             Actualización de Clientes
           </button>
+
 
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
