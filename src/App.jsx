@@ -44,48 +44,46 @@ export default function App() {
   const isDesktop = useEmulatorMode();
 
   /* --------------------------------------------------------------------------
-     ANTI-LOOP Y SANITIZACIÓN DE URL AL MONTAR
-     - Elimina parámetros sensibles si existen
-     - Detecta retorno desde visitas.distelcr.com y fuerza menú principal
-     - Usa sessionStorage para amortiguar redirecciones consecutivas
+   ANTI-LOOP Y SANITIZACIÓN DE URL AL MONTAR
   -------------------------------------------------------------------------- */
   useEffect(() => {
     try {
       const url = new URL(window.location.href);
       const params = url.searchParams;
-
       const sensitiveParams = ["telefono", "nombre", "acceso"];
       const hasSensitive = sensitiveParams.some((p) => params.has(p));
-
       const cameFromVisitas =
         document.referrer && /https?:\/\/visitas\.distelcr\.com/i.test(document.referrer);
 
-      // Evitar bucles de ida/vuelta en menos de 2s
+      // Ventana de anti-loop: 2 segundos
       const lastExternalTs = Number(sessionStorage.getItem("lastExternalRedirectTS") || "0");
       const now = Date.now();
-      const antiLoopWindowMs = 2000;
-      const inAntiLoop = now - lastExternalTs < antiLoopWindowMs;
+      const inAntiLoop = now - lastExternalTs < 2000;
 
-      if (hasSensitive || cameFromVisitas || inAntiLoop) {
-        // Limpiar query y hash
+      // Nuevo: se ejecuta solo UNA vez después del retorno
+      const handledReturn = sessionStorage.getItem("handledVisitasReturn") === "true";
+
+      if ((cameFromVisitas || hasSensitive) && !handledReturn && !inAntiLoop) {
         url.search = "";
         url.hash = "";
         window.history.replaceState(null, "", url.toString());
 
-        // Normalizar estado local
+        // Marcar como manejado para no volver a correr
+        sessionStorage.setItem("handledVisitasReturn", "true");
+
+        // Forzar vista inicial segura
         setRedirecting(false);
-        if (usuario) {
-          setVista("menuPrincipal");
-        } else {
-          setVista("login");
-        }
+        setVista(usuario ? "menuPrincipal" : "login");
+
+        // limpiar cookie compartida
+        document.cookie =
+          "distelSession=; Max-Age=0; path=/; domain=.distelcr.com; secure; samesite=strict";
       }
     } catch {
       // no-op
     }
-    // Solo al montar
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   // --- LOGIN ---
   const handleLogin = async () => {
