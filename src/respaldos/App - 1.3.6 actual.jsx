@@ -1,5 +1,6 @@
 /* ============================================================================
-   App.jsx — versión 1.3.6 FINAL
+   App.jsx — versión 1.3.5 FINAL
+   - Solución pragmática: abrir Visitas en PESTAÑA NUEVA (_blank, noopener)
    - Sin dependencias en referrer ni banderas de sesión
    - Botón "Reiniciar navegación" para limpiar estados locales
    - Conserva pantallas y flujo existentes
@@ -382,7 +383,23 @@ export default function App() {
           >
             Cerrar Sesión
           </button>
+
+          {/* Utilidad de recuperación, por si el navegador dejó residuos */}
+          <button
+            onClick={() => {
+              try {
+                // Limpia cualquier pista local de navegación previa
+                sessionStorage.clear();
+                // Mantiene sesión de usuario y vista actual
+                alert("Navegación reiniciada. Podés intentar de nuevo Actualización de Clientes.");
+              } catch {}
+            }}
+            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg text-sm"
+          >
+            Reiniciar navegación (local)
+          </button>
         </div>
+
         <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Menú Principal</p>
       </div>
     </div>
