@@ -342,7 +342,6 @@ export default function App() {
               if (redirecting) return;
               setRedirecting(true);
 
-              // Token simple (datos no sensibles)
               const token = btoa(
                 JSON.stringify({
                   telefono: usuario.telefono,
@@ -353,15 +352,14 @@ export default function App() {
               );
 
               const url = `https://visitas.distelcr.com/?token=${token}`;
+              window.location.href = url; // abre en la misma pestaña
 
-              window.open(url, "_blank", "noopener,noreferrer");
               setTimeout(() => setRedirecting(false), 1200);
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
             Actualización de Clientes
           </button>
-
 
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
