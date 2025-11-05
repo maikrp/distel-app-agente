@@ -1,10 +1,9 @@
 /* ============================================================================
-   App.jsx — versión 1.2.6 FINAL
-   - Sesión compartida entre subdominios (.distelcr.com)
-   - Crea cookie distelSession al iniciar sesión
-   - Limpia cookie al cerrar sesión (logout global)
-   - Corrige duplicados de setUsuario/setVista
-   - Corrige cierre de llaves y return fuera de función
+   App.jsx — versión 1.2.7 FINAL
+   - Mantiene sesión compartida entre subdominios (.distelcr.com)
+   - Corrige bucle al regresar de visitas.distelcr.com
+   - Agrega bandera de control para evitar doble redirección
+   - Conserva toda la lógica y estructura de versión 1.2.6
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -29,6 +28,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [requiereCambio, setRequiereCambio] = useState(false);
   const [vista, setVista] = useState(() => localStorage.getItem("vista") || "login");
+  const [redirecting, setRedirecting] = useState(false); // Nueva bandera
 
   const isDesktop = useEmulatorMode();
 
@@ -93,7 +93,9 @@ export default function App() {
       acceso: usuarioVerificado.acceso,
       region: usuarioVerificado.region,
     };
-    document.cookie = `distelSession=${btoa(JSON.stringify(sessionData))}; path=/; domain=.distelcr.com; secure; samesite=strict`;
+    document.cookie = `distelSession=${btoa(
+      JSON.stringify(sessionData)
+    )}; path=/; domain=.distelcr.com; secure; samesite=strict`;
 
     // Continuar con flujo normal
     setVista("menuPrincipal");
@@ -135,11 +137,9 @@ export default function App() {
 
   // --- LOGOUT GLOBAL ---
   const handleLogout = () => {
-    // Eliminar cookie compartida
     document.cookie =
       "distelSession=; Max-Age=0; path=/; domain=.distelcr.com; secure; samesite=strict";
 
-    // Limpiar estados locales
     setUsuario(null);
     setTelefono("");
     setClave("");
@@ -233,7 +233,7 @@ export default function App() {
             {loading ? "Verificando..." : "Ingresar"}
           </button>
           <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema Manejo de Clientes Ver.1.2.6
+            © 2025 Distel — Sistema Manejo de Clientes Ver.1.2.7
           </p>
         </div>
       </div>
@@ -307,7 +307,11 @@ export default function App() {
 
           <button
             onClick={() => {
-              window.location.href = "https://visitas.distelcr.com/?_=" + Date.now();
+              if (!redirecting) {
+                setRedirecting(true);
+                window.location.href = "https://visitas.distelcr.com/?_=" + Date.now();
+                setTimeout(() => setRedirecting(false), 1500);
+              }
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
@@ -338,7 +342,9 @@ export default function App() {
           </button>
         </div>
 
-        <p className="text-xs text-gray-400 mt-6">© 2025 Distel — Menú Principal</p>
+        <p className="text-xs text-gray-400 mt-6">
+          © 2025 Distel — Menú Principal
+        </p>
       </div>
     </div>
   );
@@ -376,7 +382,7 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2.6
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.2.7
       </footer>
     </div>
   );
