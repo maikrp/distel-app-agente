@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Visitas Bridge</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (function () {
+        try {
+          // Si venimos desde visitas y el usuario presionó "Atrás",
+          // marcar retorno y volver al root de desabasto.
+          var fromVisitas = document.referrer && /https?:\/\/visitas\.distelcr\.com/i.test(document.referrer);
+          if (fromVisitas) {
+            sessionStorage.setItem("lastReturnedFromVisitasTs", String(Date.now()));
+            // regresar a la app (root). CRA enrutará al menú según estado.
+            location.replace("/");
+            return;
+          }
+
+          // Primera vez: salir hacia visitas y marcar salida.
+          if (!sessionStorage.getItem("lastLeftForVisitasTs")) {
+            sessionStorage.setItem("lastLeftForVisitasTs", String(Date.now()));
+          }
+          // Usa replace para no dejar este bridge en el historial.
+          location.replace("https://visitas.distelcr.com/?_=" + Date.now());
+        } catch (e) {
+          // Fallback: ir directo
+          location.href = "https://visitas.distelcr.com/?_=" + Date.now();
+        }
+      })();
+    </script>
+    <style>
+      html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; background:#0b1220; color:#cbd5e1; display:grid; place-items:center; }
+      .box { text-align:center; }
+      .spin { width:32px; height:32px; border:3px solid #334155; border-top-color:#60a5fa; border-radius:50%; animation: s 1s linear infinite; margin:12px auto; }
+      @keyframes s { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div class="box">
+      <div class="spin"></div>
+      <div>Navegando a Actualización de Clientes…</div>
+    </div>
+  </body>
+</html>

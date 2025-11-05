@@ -1,10 +1,9 @@
 /* ============================================================================
-   App.jsx — versión 1.3.2a FINAL
-   - Mantiene sesión compartida entre subdominios (.distelcr.com)
-   - Permite visitar visitas.distelcr.com sin bloqueo ni bucles
-   - Permite volver a ingresar sin necesidad de cerrar sesión
-   - Limpia cookie, sessionStorage y URL solo una vez
-   - Conserva estructura y lógica completas de versión 1.3.1
+   App.jsx — versión 1.3.4 FINAL
+   - Redirección a visitas mediante bridge same-origin (/visitas-bridge.html)
+   - Retorno controlado con timestamps (sin referrer)
+   - Entra y sale infinitas veces sin reloguear
+   - Estructura conservada
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -43,38 +42,27 @@ export default function App() {
   const isDesktop = useEmulatorMode();
 
   /* --------------------------------------------------------------------------
-     ANTI-LOOP Y SANITIZACIÓN DE URL AL MONTAR (v1.3.2a)
-     - Permite nueva salida a visitas.distelcr.com tras volver
-     - Limpia cookie y query una sola vez
+     Manejo de retorno desde bridge (sin referrer)
   -------------------------------------------------------------------------- */
   useEffect(() => {
     try {
-      const url = new URL(window.location.href);
-      const params = url.searchParams;
-      const sensitiveParams = ["telefono", "nombre", "acceso"];
-      const hasSensitive = sensitiveParams.some((p) => params.has(p));
-
-      const cameFromVisitas =
-        document.referrer && /https?:\/\/visitas\.distelcr\.com/i.test(document.referrer);
-
-      const returnedFromVisitas =
-        cameFromVisitas && sessionStorage.getItem("redirectToVisitas") === "true";
-
-      if (returnedFromVisitas) {
-        // Limpieza al volver
-        sessionStorage.removeItem("redirectToVisitas");
-        document.cookie =
-          "distelSession=; Max-Age=0; path=/; domain=.distelcr.com; secure; samesite=strict";
-        localStorage.removeItem("vista");
-
-        // 🔹 Permitir futuras salidas otra vez
-        sessionStorage.setItem("readyForVisitas", "true");
-
+      const leftTs = Number(sessionStorage.getItem("lastLeftForVisitasTs") || "0");
+      const returnedTs = Number(sessionStorage.getItem("lastReturnedFromVisitasTs") || "0");
+      if (leftTs > 0 && returnedTs >= leftTs) {
+        // retorno ya detectado por el bridge: limpiar y habilitar nueva salida
+        sessionStorage.removeItem("lastLeftForVisitasTs");
+        // mantener lastReturned para depuración (no afecta)
         setRedirecting(false);
         setVista(usuario ? "menuPrincipal" : "login");
       }
 
-      if (hasSensitive) {
+      // sanear URL si alguien puso params sensibles
+      const url = new URL(window.location.href);
+      if (
+        url.searchParams.has("telefono") ||
+        url.searchParams.has("nombre") ||
+        url.searchParams.has("acceso")
+      ) {
         url.search = "";
         url.hash = "";
         window.history.replaceState(null, "", url.toString());
@@ -82,7 +70,7 @@ export default function App() {
     } catch {
       // no-op
     }
-  }, []);
+  }, [usuario]);
 
   // --- LOGIN ---
   const handleLogin = async () => {
@@ -146,9 +134,6 @@ export default function App() {
       JSON.stringify(sessionData)
     )}; path=/; domain=.distelcr.com; secure; samesite=strict`;
 
-    // 🔹 Reset permiso de visitas
-    sessionStorage.setItem("readyForVisitas", "true");
-
     setVista("menuPrincipal");
     setLoading(false);
   };
@@ -199,8 +184,7 @@ export default function App() {
     setVista("login");
     localStorage.removeItem("usuario");
     localStorage.removeItem("vista");
-    sessionStorage.removeItem("redirectToVisitas");
-    sessionStorage.removeItem("readyForVisitas");
+    // no borramos lastReturnedFromVisitasTs para diagnóstico
   };
 
   // --- EFECTOS ---
@@ -291,7 +275,7 @@ export default function App() {
             {loading ? "Verificando..." : "Ingresar"}
           </button>
           <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema Manejo de Clientes Ver.1.3.2a
+            © 2025 Distel — Sistema Manejo de Clientes Ver.1.3.4
           </p>
         </div>
       </div>
@@ -326,7 +310,7 @@ export default function App() {
           onChange={(e) => setConfirmarClave(e.target.value.replace(/\D/g, ""))}
           onKeyDown={handleKeyPressCambio}
           placeholder="Confirmar nueva clave"
-          className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:ring-2 focus:ring-blue-500"
+          className="border rounded-lg p-3 w-full text-center text-lg focus:ring-2 focus:ring-blue-500"
         />
         <button
           onClick={handleCambioClave}
@@ -365,20 +349,18 @@ export default function App() {
 
           <button
             onClick={() => {
-              if (!redirecting && sessionStorage.getItem("readyForVisitas") !== "false") {
+              if (!redirecting) {
                 setRedirecting(true);
-                sessionStorage.setItem("redirectToVisitas", "true");
-                sessionStorage.setItem("readyForVisitas", "false");
-                // 🔹 uso de window.open en lugar de location.href
-                window.open("https://visitas.distelcr.com/?_=" + Date.now(), "_self");
-                setTimeout(() => setRedirecting(false), 1500);
+                // marca de salida; el bridge fijará el retorno
+                sessionStorage.setItem("lastLeftForVisitasTs", String(Date.now()));
+                // ir al bridge same-origin
+                window.location.assign("/visitas-bridge.html");
               }
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
           >
             Actualización de Clientes
           </button>
-
 
           <button
             onClick={() => alert("Función de actualización de cliente en desarrollo")}
@@ -442,7 +424,7 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.3.2a
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.3.4
       </footer>
     </div>
   );
