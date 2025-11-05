@@ -1,10 +1,10 @@
 /* ============================================================================
-   App.jsx — versión 1.3.2 FINAL
+   App.jsx — versión 1.3.2a FINAL
    - Mantiene sesión compartida entre subdominios (.distelcr.com)
-   - Permite entrar y volver de visitas.distelcr.com sin reloguear
-   - Elimina bucle permanente al regresar
-   - Controla banderas: redirectToVisitas / readyForVisitas
-   - Conserva toda la lógica y estructura de versión 1.2.8
+   - Permite visitar visitas.distelcr.com sin bloqueo ni bucles
+   - Permite volver a ingresar sin necesidad de cerrar sesión
+   - Limpia cookie, sessionStorage y URL solo una vez
+   - Conserva estructura y lógica completas de versión 1.3.1
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -43,7 +43,7 @@ export default function App() {
   const isDesktop = useEmulatorMode();
 
   /* --------------------------------------------------------------------------
-     ANTI-LOOP Y SANITIZACIÓN DE URL AL MONTAR (v1.3.2)
+     ANTI-LOOP Y SANITIZACIÓN DE URL AL MONTAR (v1.3.2a)
      - Permite nueva salida a visitas.distelcr.com tras volver
      - Limpia cookie y query una sola vez
   -------------------------------------------------------------------------- */
@@ -291,9 +291,53 @@ export default function App() {
             {loading ? "Verificando..." : "Ingresar"}
           </button>
           <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema Manejo de Clientes Ver.1.3.2
+            © 2025 Distel — Sistema Manejo de Clientes Ver.1.3.2a
           </p>
         </div>
+      </div>
+    </div>
+  );
+
+  // --- CAMBIO DE CLAVE ---
+  const cambioClaveScreen = (
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="bg-white shadow-lg rounded-3xl p-8 w-full max-w-sm border border-gray-200 text-center animate-fadeIn">
+        <h2 className="text-lg font-bold text-gray-800 mb-4">Hola {usuario?.nombre || ""}</h2>
+        <p className="text-gray-700 mb-4">
+          Por seguridad, debe cambiar su clave temporal antes de continuar.
+        </p>
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength="4"
+          value={nuevaClave}
+          onChange={(e) => setNuevaClave(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={handleKeyPressCambio}
+          placeholder="Nueva clave (4 dígitos)"
+          className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength="4"
+          value={confirmarClave}
+          onChange={(e) => setConfirmarClave(e.target.value.replace(/\D/g, ""))}
+          onKeyDown={handleKeyPressCambio}
+          placeholder="Confirmar nueva clave"
+          className="border rounded-lg p-3 w-full text-center text-lg mb-3 focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          onClick={handleCambioClave}
+          disabled={loading}
+          className="mt-4 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg w-full disabled:opacity-50"
+        >
+          {loading ? "Actualizando..." : "Guardar nueva clave"}
+        </button>
+        <button onClick={handleLogout} className="mt-3 text-sm text-gray-600 underline">
+          Cancelar
+        </button>
       </div>
     </div>
   );
@@ -396,7 +440,7 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.3.2
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.3.2a
       </footer>
     </div>
   );
