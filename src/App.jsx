@@ -1,9 +1,9 @@
 /* ============================================================================
-   App.jsx — versión 1.3.4 FINAL
-   - Redirección a visitas mediante bridge same-origin (/visitas-bridge.html)
-   - Retorno controlado con timestamps (sin referrer)
-   - Entra y sale infinitas veces sin reloguear
-   - Estructura conservada
+   App.jsx — versión 1.3.5 FINAL
+   - Solución pragmática: abrir Visitas en PESTAÑA NUEVA (_blank, noopener)
+   - Sin dependencias en referrer ni banderas de sesión
+   - Botón "Reiniciar navegación" para limpiar estados locales
+   - Conserva pantallas y flujo existentes
    ============================================================================ */
 
 import { useState, useEffect } from "react";
@@ -15,6 +15,9 @@ import GlobalSupervisorMenu from "./components/GlobalSupervisorMenu";
 import EmulatorModal from "./components/EmulatorModal";
 import useEmulatorMode from "./hooks/useEmulatorMode";
 import AdminToolsPanel from "./components/AdminToolsPanel";
+
+// Toggle: abrir Visitas en nueva pestaña para evitar loops de navegación
+const USE_NEW_TAB_FOR_VISITAS = true;
 
 export default function App() {
   const [telefono, setTelefono] = useState("");
@@ -42,21 +45,10 @@ export default function App() {
   const isDesktop = useEmulatorMode();
 
   /* --------------------------------------------------------------------------
-     Manejo de retorno desde bridge (sin referrer)
+     Saneamiento mínimo de URL. Sin referrer ni flags. Simple y estable.
   -------------------------------------------------------------------------- */
   useEffect(() => {
     try {
-      const leftTs = Number(sessionStorage.getItem("lastLeftForVisitasTs") || "0");
-      const returnedTs = Number(sessionStorage.getItem("lastReturnedFromVisitasTs") || "0");
-      if (leftTs > 0 && returnedTs >= leftTs) {
-        // retorno ya detectado por el bridge: limpiar y habilitar nueva salida
-        sessionStorage.removeItem("lastLeftForVisitasTs");
-        // mantener lastReturned para depuración (no afecta)
-        setRedirecting(false);
-        setVista(usuario ? "menuPrincipal" : "login");
-      }
-
-      // sanear URL si alguien puso params sensibles
       const url = new URL(window.location.href);
       if (
         url.searchParams.has("telefono") ||
@@ -67,10 +59,8 @@ export default function App() {
         url.hash = "";
         window.history.replaceState(null, "", url.toString());
       }
-    } catch {
-      // no-op
-    }
-  }, [usuario]);
+    } catch {}
+  }, []);
 
   // --- LOGIN ---
   const handleLogin = async () => {
@@ -184,7 +174,7 @@ export default function App() {
     setVista("login");
     localStorage.removeItem("usuario");
     localStorage.removeItem("vista");
-    // no borramos lastReturnedFromVisitasTs para diagnóstico
+    // No se tocan otras banderas; esta versión evita ciclos por diseño
   };
 
   // --- EFECTOS ---
@@ -201,7 +191,7 @@ export default function App() {
     const handlePopState = () => window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [usuario]);
+  }, [usuario]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (allowVistas.has(vista)) {
@@ -275,7 +265,7 @@ export default function App() {
             {loading ? "Verificando..." : "Ingresar"}
           </button>
           <p className="text-xs text-gray-400 mt-6">
-            © 2025 Distel — Sistema Manejo de Clientes Ver.1.3.4
+            © 2025 Distel — Sistema Manejo de Clientes Ver.1.3.5
           </p>
         </div>
       </div>
@@ -349,12 +339,21 @@ export default function App() {
 
           <button
             onClick={() => {
-              if (!redirecting) {
-                setRedirecting(true);
-                // marca de salida; el bridge fijará el retorno
-                sessionStorage.setItem("lastLeftForVisitasTs", String(Date.now()));
-                // ir al bridge same-origin
-                window.location.assign("/visitas-bridge.html");
+              if (redirecting) return;
+              setRedirecting(true);
+
+              if (USE_NEW_TAB_FOR_VISITAS) {
+                // Abre nueva pestaña. Cerrar esa pestaña no afecta a la app.
+                window.open(
+                  "https://visitas.distelcr.com/?_=" + Date.now(),
+                  "_blank",
+                  "noopener,noreferrer"
+                );
+                // Desbloqueo de la bandera por si el navegador bloquea popups
+                setTimeout(() => setRedirecting(false), 1200);
+              } else {
+                // Fallback opcional: misma pestaña (no recomendado si hay loop)
+                window.location.assign("https://visitas.distelcr.com/?_=" + Date.now());
               }
             }}
             className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold"
@@ -383,6 +382,21 @@ export default function App() {
             className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold"
           >
             Cerrar Sesión
+          </button>
+
+          {/* Utilidad de recuperación, por si el navegador dejó residuos */}
+          <button
+            onClick={() => {
+              try {
+                // Limpia cualquier pista local de navegación previa
+                sessionStorage.clear();
+                // Mantiene sesión de usuario y vista actual
+                alert("Navegación reiniciada. Podés intentar de nuevo Actualización de Clientes.");
+              } catch {}
+            }}
+            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg text-sm"
+          >
+            Reiniciar navegación (local)
           </button>
         </div>
 
@@ -424,13 +438,15 @@ export default function App() {
       </div>
 
       <footer className="text-center p-2 text-sm text-gray-600 border-t">
-        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.3.4
+        © 2025 Distel — Sistema Manejo de Desabasto Ver.1.3.5
       </footer>
     </div>
   );
 
+  // --- PANEL ADMIN ---
   const adminToolsScreen = <AdminToolsPanel onVolver={() => setVista("menuPrincipal")} />;
 
+  // --- RENDER PRINCIPAL ---
   let contenido;
   if (vista === "login") contenido = loginScreen;
   else if (vista === "cambioClave") contenido = cambioClaveScreen;
