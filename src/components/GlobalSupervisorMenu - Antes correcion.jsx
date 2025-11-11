@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 /* ============================================================================
-   GlobalSupervisorMenu Ver 1.4.9.jsx Original
+   GlobalSupervisorMenu Ver 1.4.8.jsx Original
    - Menú y vistas de Supervisión Global / Regional (Supervisor)
    - Vistas: menu | actual | anterior | historico | region | agente
              | historicoRegionAgentes | resumenMotivos | resumenMotivosRegion
@@ -138,19 +138,11 @@ export default function GlobalSupervisorMenu({ usuario }) {
 
   const getEffTextColor = (pEff) => (pEff < 80 ? "text-red-600" : "text-green-600");
 
-  // === Nuevo helper: vincula el color de la barra con el globo ===
-  const obtenerColorBarra = (p) => {
-    const color = getBarColor(p);
-    switch (color) {
-      case "bg-green-600":
-        return "🟢";
-      case "bg-yellow-400":
-        return "🟡";
-      case "bg-orange-500":
-        return "🟠";
-      default:
-        return "🔴";
-    }
+  const obtenerSemaforo = (p) => {
+    if (p > 100) return "🟢";
+    if (p >= 80) return "🟡";
+    if (p >= 50) return "🟠";
+    return "🔴";
   };
 
   const formatNumber = (num) => {
@@ -308,7 +300,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
               totalRegionEfectivos,
               porcentajeAvance,
               porcentajeEfectividad,
-              semaforo: obtenerColorBarra(porcentajeAvance),
+              semaforo: obtenerSemaforo(porcentajeAvance),
             };
           })
         );
@@ -329,7 +321,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
           totalGlobalEfectivos,
           porcentajeGlobal,
           porcentajeGlobalEfectividad,
-          semaforo: obtenerColorBarra(porcentajeGlobal),
+          semaforo: obtenerSemaforo(porcentajeGlobal),
         });
 
         setRegiones(
@@ -392,9 +384,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
         const efectivos = (atenciones || []).filter((x) => x.resultado === "efectivo").length;
 
         const porcentajeAvance =
-          totalDesabasto === 0
-            ? 100
-            : Math.round((totalAtendidos / totalDesabasto) * 100);
+          totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
 
         const porcentajeEfectividad =
           totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
@@ -406,7 +396,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
           efectivos,
           porcentajeAvance,
           porcentajeEfectividad,
-          semaforo: obtenerColorBarra(porcentajeAvance),
+          semaforo: obtenerSemaforo(porcentajeAvance),
         };
       })
     );
@@ -471,9 +461,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
       const noEfectivos = (atencionesDia || []).filter((a) => a.resultado === "no efectivo").length;
 
       const porcentajeAvance =
-        totalDesabasto === 0
-          ? 100
-          : Math.round((totalAtendidos / totalDesabasto) * 100);
+        totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
       const porcentajeEfectividad =
         totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
       const porcentajeNoEfectivos =
@@ -489,7 +477,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
         porcentajeAvance,
         porcentajeEfectividad,
         porcentajeNoEfectivos,
-        semaforo: obtenerColorBarra(porcentajeAvance),
+        semaforo: obtenerSemaforo(porcentajeAvance),
       });
 
       setAgenteSeleccionado(agente);
@@ -1265,7 +1253,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
         <div className="bg-white shadow-lg rounded-3xl p-6 w-full max-w-5xl animate-fadeIn">
           <div className="text-center mb-4">
             <h2 className="text-xl font-semibold text-gray-800">
-              {obtenerColorBarra(porcentajeZona)} Supervisor — {regionSeleccionada.toUpperCase()}
+              {obtenerSemaforo(porcentajeZona)} Supervisor — {regionSeleccionada.toUpperCase()}
             </h2>
             <p className="text-sm text-gray-500">
               📅 {formatFechaLargoCR(fechaFijadaCtx ?? isoNDiasAtras(offsetDiasCtx))}
@@ -1291,22 +1279,21 @@ export default function GlobalSupervisorMenu({ usuario }) {
             </button>
           </div>
 
-          <div className="text-center">
-            <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
-              <div className={`${barZona} h-4`} style={{ width: `${porcentajeZona}%` }} />
-            </div>
-            <p className="text-xs">
-              Avance: {totalZonaAtendidos} de {totalZonaDesabasto} (
-              <span className={`font-semibold ${pctZona}`}>{porcentajeZona}%</span>)
-            </p>
-            <p className="text-xs mb-2">
-              Efectividad:{" "}
-              <span className={`font-semibold ${effZona}`}>
-                {porcentajeZonaEfectividad}%
-              </span>{" "}
-              — Efectivos {totalZonaEfectivos} de {totalZonaAtendidos}
-            </p>
+          <div className="bg-gray-300 rounded-full h-4 overflow-hidden mb-2">
+            <div className={`${barZona} h-4`} style={{ width: `${porcentajeZona}%` }} />
           </div>
+          <p className="text-xs">
+            Avance: {totalZonaAtendidos} de {totalZonaDesabasto} (
+            <span className={`font-semibold ${pctZona}`}>{porcentajeZona}%</span>)
+          </p>
+
+          <p className="text-xs mb-2">
+            Efectividad:{" "}
+            <span className={`font-semibold ${effZona}`}>
+              {porcentajeZonaEfectividad}%
+            </span>{" "}
+            — Efectivos {totalZonaEfectivos} de {totalZonaAtendidos}
+          </p>
 
           {agentesRegion.length === 0 ? (
             <div className="bg-white p-6 rounded-xl shadow-sm text-center text-gray-600">

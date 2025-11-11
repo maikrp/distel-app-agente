@@ -392,9 +392,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
         const efectivos = (atenciones || []).filter((x) => x.resultado === "efectivo").length;
 
         const porcentajeAvance =
-          totalDesabasto === 0
-            ? 100
-            : Math.round((totalAtendidos / totalDesabasto) * 100);
+          totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
 
         const porcentajeEfectividad =
           totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
@@ -471,9 +469,7 @@ export default function GlobalSupervisorMenu({ usuario }) {
       const noEfectivos = (atencionesDia || []).filter((a) => a.resultado === "no efectivo").length;
 
       const porcentajeAvance =
-        totalDesabasto === 0
-          ? 100
-          : Math.round((totalAtendidos / totalDesabasto) * 100);
+        totalDesabasto > 0 ? Math.round((totalAtendidos / totalDesabasto) * 100) : 0;
       const porcentajeEfectividad =
         totalAtendidos > 0 ? Math.round((efectivos / totalAtendidos) * 100) : 0;
       const porcentajeNoEfectivos =
