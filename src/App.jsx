@@ -15,11 +15,8 @@ import EmulatorModal from "./components/EmulatorModal";
 import useEmulatorMode from "./hooks/useEmulatorMode";
 import AdminToolsPanel from "./components/AdminToolsPanel";
 
-// Toggle: abrir Visitas en nueva pestaña para evitar loops de navegación
-const USE_NEW_TAB_FOR_VISITAS = true;
-// eslint-disable-next-line no-unused-vars
-
 export default function App() {
+  // Estados principales
   const [telefono, setTelefono] = useState("");
   const [clave, setClave] = useState("");
   const [nuevaClave, setNuevaClave] = useState("");
@@ -32,17 +29,17 @@ export default function App() {
       return null;
     }
   });
-
   const allowVistas = new Set(["login", "cambioClave", "menuPrincipal", "desabasto", "adminTools"]);
   const [loading, setLoading] = useState(false);
   const initialVista = (() => {
     const v = localStorage.getItem("vista") || "login";
     return allowVistas.has(v) ? v : "login";
   })();
-  const [requiereCambio, setRequiereCambio] = useState(false);
-  // eslint-disable-next-line no-unused-vars
+
+  // ⚠️ Asegúrate de tener también estas líneas:
   const [vista, setVista] = useState(initialVista);
   const [redirecting, setRedirecting] = useState(false);
+  const [requiereCambio, setRequiereCambio] = useState(false);
   const isDesktop = useEmulatorMode();
 
   /* --------------------------------------------------------------------------
@@ -96,7 +93,6 @@ export default function App() {
     if (agente.clave_temporal) {
       setUsuario(agente);
       localStorage.setItem("usuario", JSON.stringify(agente));
-      setRequiereCambio(true);
       setVista("cambioClave");
       setLoading(false);
       return;
@@ -157,7 +153,6 @@ export default function App() {
     const actualizado = { ...usuario, clave_temporal: false };
     setUsuario(actualizado);
     localStorage.setItem("usuario", JSON.stringify(actualizado));
-    setRequiereCambio(false);
     setVista("menuPrincipal");
     setLoading(false);
   };
@@ -178,7 +173,6 @@ export default function App() {
     // No se tocan otras banderas; esta versión evita ciclos por diseño
   };
 
-  // --- EFECTOS ---
   useEffect(() => {
     if (!usuario) {
       setVista("login");
@@ -192,7 +186,7 @@ export default function App() {
     const handlePopState = () => window.history.pushState(null, "", window.location.href);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [usuario]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [usuario, vista, allowVistas]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {

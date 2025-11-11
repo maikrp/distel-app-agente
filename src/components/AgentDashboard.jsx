@@ -141,9 +141,10 @@ export default function AgentDashboard({ usuario }) {
     cargarDatos();
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     cargarDatos();
-  }, []);
+  }, [cargarDatos]);
 
   const formatNumber = (num) => {
     if (num === null || num === undefined || isNaN(num)) return "N/D";
