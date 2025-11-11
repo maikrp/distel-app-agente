@@ -435,7 +435,7 @@ export default function App() {
   else if (vista === "adminTools") contenido = adminToolsScreen;
   else contenido = loginScreen;
 
-  const wrapperClass = isDesktop ? "emulator-desktop-mode" : "";
+    const wrapperClass = isDesktop ? "emulator-desktop-mode" : "";
 
   return (
     <>
@@ -448,4 +448,4 @@ export default function App() {
       )}
     </>
   );
-}
+} // 👈 ESTA CIERRA LA FUNCIÓN App
