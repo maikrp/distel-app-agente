@@ -17,6 +17,7 @@ import AdminToolsPanel from "./components/AdminToolsPanel";
 
 // Toggle: abrir Visitas en nueva pestaña para evitar loops de navegación
 const USE_NEW_TAB_FOR_VISITAS = true;
+// eslint-disable-next-line no-unused-vars
 
 export default function App() {
   const [telefono, setTelefono] = useState("");
@@ -39,6 +40,7 @@ export default function App() {
     return allowVistas.has(v) ? v : "login";
   })();
   const [requiereCambio, setRequiereCambio] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [vista, setVista] = useState(initialVista);
   const [redirecting, setRedirecting] = useState(false);
   const isDesktop = useEmulatorMode();
